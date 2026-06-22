@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>LocaFácil</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -187,6 +187,9 @@ textarea.form-input{resize:vertical;min-height:72px;}
 .qty-btn-plus{background:var(--orange);color:#fff;}
 .qty-btn-plus:hover{background:var(--orange2);}
 .qty-val{font-size:17px;font-weight:800;width:24px;text-align:center;color:var(--text);}
+.qty-input{width:52px;text-align:center;font-size:17px;font-weight:800;font-family:'Inter',sans-serif;color:var(--text);background:var(--input-bg);border:1.5px solid transparent;border-radius:8px;padding:5px 4px;outline:none;-moz-appearance:textfield;}
+.qty-input:focus{border-color:var(--orange);}
+.qty-input::-webkit-inner-spin-button,.qty-input::-webkit-outer-spin-button{-webkit-appearance:none;}
 
 .btn-primary{width:100%;background:var(--orange);color:#fff;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
 .btn-primary:hover{background:var(--orange2);}
@@ -392,6 +395,12 @@ textarea.form-input{resize:vertical;min-height:72px;}
           <div class="form-2col">
             <div><label class="form-label">Entrega</label><input type="date" class="form-input" id="m-entrega"/></div>
             <div><label class="form-label">Recolhimento</label><input type="date" class="form-input" id="m-recolhimento"/></div>
+          </div>
+        </div>
+        <div class="form-field">
+          <div class="form-2col">
+            <div><label class="form-label">Horário entrega</label><input type="time" class="form-input" id="m-hora-entrega"/></div>
+            <div><label class="form-label">Horário recolhimento</label><input type="time" class="form-input" id="m-hora-recolhimento"/></div>
           </div>
         </div>
       </div>
@@ -691,8 +700,8 @@ function renderAlugueis() {
         <div>
           <div class="aluguel-nome">${a.cliente}</div>
           <div class="aluguel-info">
-            📤 Entrega: ${fmt(a.entrega)}<br>
-            📥 Recolhimento: ${fmt(a.recolhimento)}
+            📤 Entrega: ${fmt(a.entrega)}${a.hora_entrega ? ' às '+a.hora_entrega : ''}<br>
+            📥 Recolhimento: ${fmt(a.recolhimento)}${a.hora_recolhimento ? ' às '+a.hora_recolhimento : ''}
             ${a.endereco?`<br>📍 ${a.endereco}`:''}
             ${a.fone?`<br>📱 ${a.fone}`:''}
           </div>
@@ -750,7 +759,7 @@ function renderHistorico() {
       <div class="aluguel-top">
         <div>
           <div class="aluguel-nome">${a.cliente}</div>
-          <div class="aluguel-info">📤 ${fmt(a.entrega)} → 📥 ${fmt(a.recolhimento)}<br>✅ Voltou: ${fmt(a.voltou)}</div>
+          <div class="aluguel-info">📤 ${fmt(a.entrega)}${a.hora_entrega?' às '+a.hora_entrega:''} → 📥 ${fmt(a.recolhimento)}${a.hora_recolhimento?' às '+a.hora_recolhimento:''}<br>✅ Voltou: ${fmt(a.voltou)}</div>
         </div>
         <span class="badge badge-gray">Finalizado</span>
       </div>
@@ -790,7 +799,7 @@ let selecionados = {};
 
 function openModalAluguel() {
   selecionados = {};
-  ['m-cliente','m-fone','m-endereco','m-obs'].forEach(id => document.getElementById(id).value='');
+  ['m-cliente','m-fone','m-endereco','m-obs','m-hora-entrega','m-hora-recolhimento'].forEach(id => document.getElementById(id).value='');
   document.getElementById('m-entrega').value = today();
   document.getElementById('m-recolhimento').value = today();
   renderModalItens();
@@ -802,11 +811,19 @@ function renderModalItens() {
     <div class="qty-row">
       <div>
         <div class="qty-item-name">${item.nome}</div>
-        <div class="qty-item-stock">${item.qtd} no estoque</div>
+        <div class="qty-item-stock">máx ${item.qtd} ${item.unidade}</div>
       </div>
       <div class="qty-ctrl">
         <button class="qty-btn qty-btn-minus" onclick="chQty(${item.id},-1)">−</button>
-        <div class="qty-val" id="qty-${item.id}">0</div>
+        <input
+          type="number"
+          class="qty-input"
+          id="qty-${item.id}"
+          value="0"
+          min="0"
+          max="${item.qtd}"
+          oninput="chQtyInput(${item.id}, this.value)"
+        />
         <button class="qty-btn qty-btn-plus" onclick="chQty(${item.id},+1)">+</button>
       </div>
     </div>`).join('');
@@ -816,7 +833,16 @@ function chQty(id, delta) {
   const cur = selecionados[id]||0;
   const item = estoque.find(e=>e.id===id);
   selecionados[id] = Math.max(0, Math.min(cur+delta, item.qtd));
-  document.getElementById('qty-'+id).textContent = selecionados[id];
+  const inp = document.getElementById('qty-'+id);
+  if (inp) inp.value = selecionados[id];
+}
+
+function chQtyInput(id, val) {
+  const item = estoque.find(e=>e.id===id);
+  const n = Math.max(0, Math.min(parseInt(val)||0, item.qtd));
+  selecionados[id] = n;
+  const inp = document.getElementById('qty-'+id);
+  if (inp) inp.value = n;
 }
 
 async function salvarAluguel() {
@@ -828,12 +854,17 @@ async function salvarAluguel() {
 
   const itens  = Object.entries(selecionados).map(([id,qty])=>({id:parseInt(id),qty})).filter(i=>i.qty>0);
   const status = entrega <= today() ? 'ativo' : 'agendado';
+  const horaEntrega   = document.getElementById('m-hora-entrega').value || null;
+  const horaRecolhimento = document.getElementById('m-hora-recolhimento').value || null;
   const payload = {
     cliente,
     fone:     document.getElementById('m-fone').value.trim()||null,
     endereco: document.getElementById('m-endereco').value.trim()||null,
     obs:      document.getElementById('m-obs').value.trim()||null,
-    entrega, recolhimento:recolh, itens, status
+    entrega, recolhimento:recolh,
+    hora_entrega: horaEntrega,
+    hora_recolhimento: horaRecolhimento,
+    itens, status
   };
 
   const btn = document.getElementById('btn-salvar-aluguel');
