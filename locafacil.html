@@ -191,6 +191,9 @@ textarea.form-input{resize:vertical;min-height:72px;}
 .qty-input:focus{border-color:var(--orange);}
 .qty-input::-webkit-inner-spin-button,.qty-input::-webkit-outer-spin-button{-webkit-appearance:none;}
 
+.pag-options{display:flex;gap:8px;}
+.pag-btn{flex:1;padding:11px 6px;border-radius:10px;border:1.5px solid var(--border);background:var(--input-bg);color:var(--text2);font-size:12px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:all .15s;text-align:center;}
+.pag-btn.active{border-color:var(--orange);background:var(--orange-bg);color:var(--orange);}
 .btn-primary{width:100%;background:var(--orange);color:#fff;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
 .btn-primary:hover{background:var(--orange2);}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
@@ -407,6 +410,17 @@ textarea.form-input{resize:vertical;min-height:72px;}
       <div class="form-card">
         <div class="form-section-title">Itens do Aluguel</div>
         <div id="modal-itens-list"></div>
+      </div>
+      <div class="form-card">
+        <div class="form-section-title">Pagamento</div>
+        <div class="form-field">
+          <div class="pag-options">
+            <button type="button" class="pag-btn" id="pag-sim" onclick="setPag('Sim')">✅ Pago</button>
+            <button type="button" class="pag-btn" id="pag-nao" onclick="setPag('Não')">❌ Não pago</button>
+            <button type="button" class="pag-btn" id="pag-outro" onclick="setPag('Outro')">✏️ Outro</button>
+          </div>
+          <input type="text" class="form-input" id="m-pag-outro" placeholder="Ex: Sinal pago, restante na entrega..." style="margin-top:10px;display:none;"/>
+        </div>
       </div>
       <div class="form-card">
         <div class="form-section-title">Observações</div>
@@ -709,6 +723,7 @@ function renderAlugueis() {
         ${badge}
       </div>
       ${chips?`<div class="aluguel-itens-wrap">${chips}</div>`:''}
+      ${a.pagamento ? `<div class="aluguel-obs">💰 Pagamento: <b>${a.pagamento}</b></div>` : ''}
       ${a.obs?`<div class="aluguel-obs">💬 ${a.obs}</div>`:''}
       <div class="aluguel-actions">
         ${btnSaiu}${btnVoltou}
@@ -746,6 +761,16 @@ async function excluirAluguel(id) {
   showToast('Aluguel removido');
 }
 
+async function excluirHistorico(id) {
+  if (!confirm('Apagar este registro do histórico?')) return;
+  setSyncState('syncing');
+  const {error} = await sb.from('alugueis').delete().eq('id',id);
+  if (error) { setSyncState('error'); showToast('Erro ao apagar'); return; }
+  await loadAllData();
+  renderHistorico();
+  showToast('Registro apagado');
+}
+
 /* ════════════════════════════════════
    HISTÓRICO
 ════════════════════════════════════ */
@@ -755,7 +780,7 @@ function renderHistorico() {
   if (!fin.length) { el.innerHTML=`<div class="empty"><div class="empty-icon">📁</div><div class="empty-title">Nenhum finalizado</div><div class="empty-text">Os aluguéis concluídos aparecem aqui</div></div>`; return; }
   el.innerHTML = fin.map(a => {
     const chips=(a.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?`<span class="item-chip">${est.nome} · ${i.qty}</span>`:''}).join('');
-    return `<div class="aluguel-card" style="opacity:.8">
+    return `<div class="aluguel-card" style="opacity:.85">
       <div class="aluguel-top">
         <div>
           <div class="aluguel-nome">${a.cliente}</div>
@@ -764,6 +789,10 @@ function renderHistorico() {
         <span class="badge badge-gray">Finalizado</span>
       </div>
       ${chips?`<div class="aluguel-itens-wrap">${chips}</div>`:''}
+      ${a.pagamento?`<div class="aluguel-obs">💰 Pagamento: <b>${a.pagamento}</b></div>`:''}
+      <div class="aluguel-actions">
+        <button class="action-btn danger" onclick="excluirHistorico(${a.id})">🗑 Apagar do histórico</button>
+      </div>
     </div>`;
   }).join('');
 }
@@ -796,10 +825,23 @@ function calcDisponib() {
    MODAL ALUGUEL
 ════════════════════════════════════ */
 let selecionados = {};
+let pagamentoSelecionado = null;
+
+function setPag(val) {
+  pagamentoSelecionado = val;
+  ['sim','nao','outro'].forEach(k => document.getElementById('pag-'+k).classList.remove('active'));
+  const map = {'Sim':'sim','Não':'nao','Outro':'outro'};
+  if (map[val]) document.getElementById('pag-'+map[val]).classList.add('active');
+  document.getElementById('m-pag-outro').style.display = val === 'Outro' ? 'block' : 'none';
+  if (val !== 'Outro') document.getElementById('m-pag-outro').value = '';
+}
 
 function openModalAluguel() {
   selecionados = {};
-  ['m-cliente','m-fone','m-endereco','m-obs','m-hora-entrega','m-hora-recolhimento'].forEach(id => document.getElementById(id).value='');
+  ['m-cliente','m-fone','m-endereco','m-obs','m-hora-entrega','m-hora-recolhimento','m-pag-outro'].forEach(id => document.getElementById(id).value='');
+  pagamentoSelecionado = null;
+  ['sim','nao','outro'].forEach(k => document.getElementById('pag-'+k).classList.remove('active'));
+  document.getElementById('m-pag-outro').style.display = 'none';
   document.getElementById('m-entrega').value = today();
   document.getElementById('m-recolhimento').value = today();
   renderModalItens();
@@ -864,6 +906,9 @@ async function salvarAluguel() {
     entrega, recolhimento:recolh,
     hora_entrega: horaEntrega,
     hora_recolhimento: horaRecolhimento,
+    pagamento: pagamentoSelecionado === 'Outro'
+      ? (document.getElementById('m-pag-outro').value.trim() || 'Outro')
+      : pagamentoSelecionado,
     itens, status
   };
 
