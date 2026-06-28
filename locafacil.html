@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>LocaFácil</title>
+<title>Lince Serviços e Eventos</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -260,7 +260,7 @@ textarea.form-input{resize:vertical;min-height:72px;}
           <circle cx="10" cy="10" r="2.5" fill="white"/>
         </svg>
       </div>
-      <div class="header-wordmark">Loca<span>Fácil</span></div>
+      <div class="header-wordmark" style="font-size:14px">Lince <span>Serviços e Eventos</span></div>
     </div>
     <div class="header-right">
       <button class="btn-refresh" id="btn-refresh" onclick="manualRefresh()" title="Atualizar"><svg id="refresh-icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.6 0 3 .68 4 1.76M13.5 2.5v3h-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -662,6 +662,27 @@ function renderPainelList(id, list, tipo) {
    ESTOQUE
 ════════════════════════════════════ */
 function calcEmCampo(itemId, dataInicio, dataFim) {
+  // conta ativo (em campo) + agendado (reservado) no período
+  return alugueis
+    .filter(a => (a.status==='ativo'||a.status==='agendado') && a.entrega?.slice(0,10)<=dataFim && a.recolhimento?.slice(0,10)>=dataInicio)
+    .reduce((acc,a) => {
+      const it = (a.itens||[]).find(x=>x.id===itemId);
+      return acc + (it?it.qty:0);
+    }, 0);
+}
+
+function calcReservado(itemId, dataInicio, dataFim) {
+  // apenas agendados (ainda não saíram)
+  return alugueis
+    .filter(a => a.status==='agendado' && a.entrega?.slice(0,10)<=dataFim && a.recolhimento?.slice(0,10)>=dataInicio)
+    .reduce((acc,a) => {
+      const it = (a.itens||[]).find(x=>x.id===itemId);
+      return acc + (it?it.qty:0);
+    }, 0);
+}
+
+function calcAtivo(itemId, dataInicio, dataFim) {
+  // apenas em campo
   return alugueis
     .filter(a => a.status==='ativo' && a.entrega?.slice(0,10)<=dataFim && a.recolhimento?.slice(0,10)>=dataInicio)
     .reduce((acc,a) => {
@@ -675,18 +696,26 @@ function renderEstoque() {
   const el   = document.getElementById('estoque-list');
   if (!estoque.length) { el.innerHTML=`<div class="empty"><div class="empty-icon">📦</div><div class="empty-title">Nenhum item</div><div class="empty-text">Adicione itens ao estoque</div></div>`; return; }
   el.innerHTML = estoque.map(item => {
-    const campo = calcEmCampo(item.id, hoje, hoje);
-    const disp  = item.qtd - campo;
-    const pct   = item.qtd>0 ? disp/item.qtd : 1;
-    const color = pct<=0.2?'var(--red)':pct<=0.5?'var(--yellow)':'var(--green)';
-    const barC  = pct<=0.2?'#FF3B30':pct<=0.5?'#FF9500':'#34C759';
+    const campo     = calcAtivo(item.id, hoje, hoje);
+    const reservado = calcReservado(item.id, hoje, hoje);
+    const ocupado   = campo + reservado;
+    const disp      = item.qtd - ocupado;
+    const pct       = item.qtd>0 ? disp/item.qtd : 1;
+    const color     = pct<=0.2?'var(--red)':pct<=0.5?'var(--yellow)':'var(--green)';
+    const barC      = pct<=0.2?'#FF3B30':pct<=0.5?'#FF9500':'#34C759';
+
+    const metaExtra = [
+      campo>0     ? `<span style="color:#34C759">${campo} em campo</span>` : '',
+      reservado>0 ? `<span style="color:#FF9500">${reservado} reservado${reservado!==1?'s':''}</span>` : '',
+    ].filter(Boolean).join(' · ');
+
     return `<div class="list-item">
       <div class="list-item-icon" style="background:var(--input-bg)">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="6" width="14" height="10" rx="2" stroke="#636366" stroke-width="1.4"/><path d="M5 6V5a4 4 0 0 1 8 0v1" stroke="#636366" stroke-width="1.4" stroke-linecap="round"/></svg>
       </div>
       <div class="list-item-body">
         <div class="list-item-name">${item.nome}</div>
-        <div class="list-item-meta">${campo} em campo · ${item.qtd} total · ${item.unidade}</div>
+        <div class="list-item-meta">${item.qtd} total${metaExtra?' · '+metaExtra:''}</div>
         <div class="avail-bar-wrap" style="margin-top:6px"><div class="avail-bar" style="width:${Math.max(4,pct*100)}%;background:${barC}"></div></div>
       </div>
       <div class="list-item-right">
@@ -1093,7 +1122,7 @@ async function gerarImagem() {
     if(!al) return;
     const DPR=2,W=380;
     const itensArr=(al.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?{nome:est.nome,qty:i.qty,unidade:plural(i.qty,est.unidade)}:null;}).filter(Boolean);
-    const itemH=44,obsH=al.obs?60:0,H=320+(itensArr.length*itemH)+obsH;
+    const itemH=44,obsH=al.obs?60:0,H=348+(itensArr.length*itemH)+obsH;
     const cv=document.createElement('canvas');
     cv.width=W*DPR;cv.height=H*DPR;
     const ctx=cv.getContext('2d');
@@ -1112,8 +1141,8 @@ async function gerarImagem() {
     ctx.closePath();ctx.stroke();
     ctx.beginPath();ctx.arc(40,40,3,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
     // brand
-    ctx.fillStyle='#fff';ctx.font='900 20px Arial';ctx.fillText('LocaFácil',72,38);
-    ctx.font='500 10px Arial';ctx.fillStyle='rgba(255,255,255,0.85)';ctx.fillText('Lince Serviços e Eventos LTDA',72,54);
+    ctx.fillStyle='#fff';ctx.font='900 16px Arial';ctx.fillText('Lince Serviços e Eventos',72,36);
+    ctx.font='500 10px Arial';ctx.fillStyle='rgba(255,255,255,0.85)';ctx.fillText('LTDA',72,52);
     // badge
     rr(W-106,22,94,26,8);ctx.fillStyle='rgba(0,0,0,0.22)';ctx.fill();
     ctx.fillStyle='rgba(255,255,255,0.8)';ctx.font='700 9px Arial';ctx.textAlign='center';ctx.fillText('AGENDAMENTO',W-59,39);ctx.textAlign='left';
@@ -1150,17 +1179,22 @@ async function gerarImagem() {
       y+=itemH;
     });
     if(al.obs){y+=6;rr(22,y,W-44,46,10);ctx.fillStyle='#1C1C1E';ctx.fill();ctx.fillStyle='#636366';ctx.font='700 10px Arial';ctx.fillText('OBSERVAÇÃO',34,y+16);ctx.fillStyle='#AEAEB2';ctx.font='500 12px Arial';ctx.fillText(al.obs.substring(0,50)+(al.obs.length>50?'…':''),34,y+34);}
+    // grato
+    ctx.fillStyle='#FF6B00';ctx.font='700 13px Arial';ctx.textAlign='center';
+    ctx.fillText('🙏 Grato pela preferência!',W/2,H-46);
+    ctx.textAlign='left';
+
     // footer
     ctx.fillStyle='#1C1C1E';ctx.fillRect(0,H-36,W,36);
-    ctx.fillStyle='#636366';ctx.font='500 11px Arial';ctx.fillText('Lince Serviços e Eventos LTDA',22,H-14);
-    ctx.fillStyle='#FF6B00';ctx.font='700 11px Arial';const fw=ctx.measureText('LocaFácil').width;ctx.fillText('LocaFácil',W-22-fw,H-14);
+    ctx.fillStyle='#636366';ctx.font='500 11px Arial';ctx.fillText('Sistema de Gestão de Aluguéis',22,H-14);
+    ctx.fillStyle='#FF6B00';ctx.font='700 11px Arial';const fw=ctx.measureText('Lince').width;ctx.fillText('Lince',W-22-fw,H-14);
     // no border needed — straight edges
     cv.toBlob(async(blob)=>{
-      const file=new File([blob],'locafacil.png',{type:'image/png'});
+      const file=new File([blob],'lince-agendamento.png',{type:'image/png'});
       if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-        await navigator.share({files:[file],title:'Agendamento LocaFácil'});
+        await navigator.share({files:[file],title:'Agendamento Lince Serviços e Eventos'});
       } else {
-        const url=cv.toDataURL('image/png');const link=document.createElement('a');link.href=url;link.download='locafacil.png';link.click();
+        const url=cv.toDataURL('image/png');const link=document.createElement('a');link.href=url;link.download='lince-agendamento.png';link.click();
         showToast('✅ Imagem salva!');
       }
     },'image/png');
@@ -1173,8 +1207,8 @@ function compartilharTexto() {
   const a=alugueis.find(x=>x.id===voucherAluguelId);
   if(!a) return;
   const itensTexto=(a.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?`• ${est.nome}: ${i.qty} ${plural(i.qty,est.unidade)}`:''}).filter(Boolean).join('\n');
-  const texto=`📋 *Agendamento — LocaFácil*\n*Lince Serviços e Eventos LTDA*\n\n👤 ${a.cliente}\n${a.fone?'📱 '+a.fone+'\n':''}${a.endereco?'📍 '+a.endereco+'\n':''}\n📤 Entrega: ${fmt(a.entrega)}${a.hora_entrega?' às '+a.hora_entrega:''}\n📥 Recolhimento: ${fmt(a.recolhimento)}${a.hora_recolhimento?' às '+a.hora_recolhimento:''}\n\n📦 Itens:\n${itensTexto||'(sem itens)'}${a.obs?'\n\n💬 '+a.obs:''}\n\n_LocaFácil — Lince Serviços e Eventos LTDA_`;
-  if(navigator.share){navigator.share({title:'Agendamento LocaFácil',text:texto}).catch(()=>{});}
+  const texto=`📋 *Agendamento — Lince Serviços e Eventos LTDA*\n\n👤 ${a.cliente}\n${a.fone?'📱 '+a.fone+'\n':''}${a.endereco?'📍 '+a.endereco+'\n':''}\n📤 Entrega: ${fmt(a.entrega)}${a.hora_entrega?' às '+a.hora_entrega:''}\n📥 Recolhimento: ${fmt(a.recolhimento)}${a.hora_recolhimento?' às '+a.hora_recolhimento:''}\n\n📦 Itens:\n${itensTexto||'(sem itens)'}${a.obs?'\n\n💬 '+a.obs:''}\n\n_Lince Serviços e Eventos LTDA_\n\n🙏 Grato pela preferência!`;
+  if(navigator.share){navigator.share({title:'Agendamento Lince Serviços e Eventos',text:texto}).catch(()=>{});}
   else{navigator.clipboard.writeText(texto).then(()=>showToast('✅ Copiado!')).catch(()=>showToast('Erro ao copiar'));}
 }
 </script>
@@ -1205,8 +1239,8 @@ function compartilharTexto() {
             </svg>
           </div>
           <div>
-            <div style="font-size:18px;font-weight:900;letter-spacing:-0.5px;color:#fff">LocaFácil</div>
-            <div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:1px;font-weight:500">Lince Serviços e Eventos LTDA</div>
+            <div style="font-size:16px;font-weight:900;letter-spacing:-0.3px;color:#fff">Lince Serviços e Eventos</div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.8);margin-top:1px;font-weight:500">LTDA</div>
           </div>
           <div style="margin-left:auto;background:rgba(0,0,0,0.2);border-radius:8px;padding:5px 10px">
             <div style="font-size:10px;color:rgba(255,255,255,0.7);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Agendamento</div>
@@ -1252,10 +1286,15 @@ function compartilharTexto() {
           </div>
         </div>
 
+        <!-- grato -->
+        <div style="text-align:center;padding:14px 22px 10px">
+          <div style="font-size:13px;font-weight:700;color:#FF6B00">🙏 Grato pela preferência!</div>
+        </div>
+
         <!-- footer -->
         <div style="background:#1C1C1E;padding:12px 22px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid #2C2C2E">
-          <div style="font-size:11px;color:#636366;font-weight:500">Lince Serviços e Eventos LTDA</div>
-          <div style="font-size:11px;color:#FF6B00;font-weight:700">LocaFácil</div>
+          <div style="font-size:11px;color:#636366;font-weight:500">Sistema de Gestão de Aluguéis</div>
+          <div style="font-size:11px;color:#FF6B00;font-weight:700">Lince Serviços e Eventos LTDA</div>
         </div>
       </div>
 
