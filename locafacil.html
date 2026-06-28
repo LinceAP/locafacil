@@ -600,6 +600,18 @@ function fmt(s) {
   return `${d}/${m}/${y}`;
 }
 
+function plural(qty, unidade) {
+  if (qty <= 1) return unidade;
+  const map = {
+    'unidade':   'unidades',
+    'jogo':      'jogos',
+    'conjunto':  'conjuntos',
+    'metro':     'metros',
+    'par':       'pares',
+  };
+  return map[unidade] || unidade;
+}
+
 function setDate() {
   const now  = new Date();
   const dias  = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
@@ -703,7 +715,7 @@ function renderAlugueis() {
 
     const chips = (a.itens||[]).filter(i=>i.qty>0).map(i=>{
       const est=estoque.find(e=>e.id===i.id);
-      return est?`<span class="item-chip">${est.nome} · ${i.qty}</span>`:'';
+      return est?`<span class="item-chip">${est.nome} · ${i.qty} ${plural(i.qty,est.unidade)}</span>`:'';
     }).join('');
 
     const btnSaiu      = a.status==='agendado' ? `<button class="action-btn primary" onclick="marcarSaiu(${a.id})">📤 Confirmar Saída</button>` : '';
@@ -791,7 +803,7 @@ function renderHistorico() {
   const fin = alugueis.filter(a=>a.status==='finalizado').sort((a,b)=>(b.voltou||'').localeCompare(a.voltou||''));
   if (!fin.length) { el.innerHTML=`<div class="empty"><div class="empty-icon">📁</div><div class="empty-title">Nenhum finalizado</div><div class="empty-text">Os aluguéis concluídos aparecem aqui</div></div>`; return; }
   el.innerHTML = fin.map(a => {
-    const chips=(a.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?`<span class="item-chip">${est.nome} · ${i.qty}</span>`:''}).join('');
+    const chips=(a.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?`<span class="item-chip">${est.nome} · ${i.qty} ${plural(i.qty,est.unidade)}</span>`:''}).join('');
     return `<div class="aluguel-card" style="opacity:.85">
       <div class="aluguel-top">
         <div>
@@ -1062,7 +1074,7 @@ function compartilhar(id) {
   const itensEl = document.getElementById('v-itens');
   itensEl.innerHTML = (a.itens||[]).filter(i=>i.qty>0).map(i=>{
     const est=estoque.find(e=>e.id===i.id);
-    return est?`<div style="display:flex;align-items:center;justify-content:space-between;background:#1C1C1E;border-radius:8px;padding:9px 12px"><span style="font-size:13px;font-weight:600;color:#E5E5EA">${est.nome}</span><span style="font-size:13px;font-weight:800;color:#FF6B00">${i.qty} ${est.unidade}</span></div>`:'';
+    return est?`<div style="display:flex;align-items:center;justify-content:space-between;background:#1C1C1E;border-radius:8px;padding:9px 12px"><span style="font-size:13px;font-weight:600;color:#E5E5EA">${est.nome}</span><span style="font-size:13px;font-weight:800;color:#FF6B00">${i.qty} ${plural(i.qty,est.unidade)}</span></div>`:'';
   }).join('');
   if (a.obs) {
     document.getElementById('v-obs').textContent = a.obs;
@@ -1080,7 +1092,7 @@ async function gerarImagem() {
     const al=alugueis.find(x=>x.id===voucherAluguelId);
     if(!al) return;
     const DPR=2,W=380;
-    const itensArr=(al.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?{nome:est.nome,qty:i.qty,unidade:est.unidade}:null;}).filter(Boolean);
+    const itensArr=(al.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?{nome:est.nome,qty:i.qty,unidade:plural(i.qty,est.unidade)}:null;}).filter(Boolean);
     const itemH=44,obsH=al.obs?60:0,H=320+(itensArr.length*itemH)+obsH;
     const cv=document.createElement('canvas');
     cv.width=W*DPR;cv.height=H*DPR;
@@ -1088,9 +1100,11 @@ async function gerarImagem() {
     ctx.scale(DPR,DPR);
     const rr=(x,y,w,h,rd)=>{ctx.beginPath();ctx.moveTo(x+rd,y);ctx.lineTo(x+w-rd,y);ctx.quadraticCurveTo(x+w,y,x+w,y+rd);ctx.lineTo(x+w,y+h-rd);ctx.quadraticCurveTo(x+w,y+h,x+w-rd,y+h);ctx.lineTo(x+rd,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-rd);ctx.lineTo(x,y+rd);ctx.quadraticCurveTo(x,y,x+rd,y);ctx.closePath();};
     // bg
-    rr(0,0,W,H,20);ctx.fillStyle='#0F0F0F';ctx.fill();
+    ctx.fillStyle='#0F0F0F';
+    ctx.fillRect(0,0,W,H);
     // header
-    rr(0,0,W,80,20);ctx.fillStyle='#FF6B00';ctx.fill();ctx.fillRect(0,60,W,20);
+    ctx.fillStyle='#FF6B00';
+    ctx.fillRect(0,0,W,80);
     // logo box
     rr(18,18,44,44,12);ctx.fillStyle='rgba(0,0,0,0.25)';ctx.fill();
     ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
@@ -1140,7 +1154,7 @@ async function gerarImagem() {
     ctx.fillStyle='#1C1C1E';ctx.fillRect(0,H-36,W,36);
     ctx.fillStyle='#636366';ctx.font='500 11px Arial';ctx.fillText('Lince Serviços e Eventos LTDA',22,H-14);
     ctx.fillStyle='#FF6B00';ctx.font='700 11px Arial';const fw=ctx.measureText('LocaFácil').width;ctx.fillText('LocaFácil',W-22-fw,H-14);
-    rr(0,0,W,H,20);ctx.strokeStyle='#2C2C2E';ctx.lineWidth=1;ctx.stroke();
+    // no border needed — straight edges
     cv.toBlob(async(blob)=>{
       const file=new File([blob],'locafacil.png',{type:'image/png'});
       if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
@@ -1158,7 +1172,7 @@ async function gerarImagem() {
 function compartilharTexto() {
   const a=alugueis.find(x=>x.id===voucherAluguelId);
   if(!a) return;
-  const itensTexto=(a.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?`• ${est.nome}: ${i.qty} ${est.unidade}`:''}).filter(Boolean).join('\n');
+  const itensTexto=(a.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?`• ${est.nome}: ${i.qty} ${plural(i.qty,est.unidade)}`:''}).filter(Boolean).join('\n');
   const texto=`📋 *Agendamento — LocaFácil*\n*Lince Serviços e Eventos LTDA*\n\n👤 ${a.cliente}\n${a.fone?'📱 '+a.fone+'\n':''}${a.endereco?'📍 '+a.endereco+'\n':''}\n📤 Entrega: ${fmt(a.entrega)}${a.hora_entrega?' às '+a.hora_entrega:''}\n📥 Recolhimento: ${fmt(a.recolhimento)}${a.hora_recolhimento?' às '+a.hora_recolhimento:''}\n\n📦 Itens:\n${itensTexto||'(sem itens)'}${a.obs?'\n\n💬 '+a.obs:''}\n\n_LocaFácil — Lince Serviços e Eventos LTDA_`;
   if(navigator.share){navigator.share({title:'Agendamento LocaFácil',text:texto}).catch(()=>{});}
   else{navigator.clipboard.writeText(texto).then(()=>showToast('✅ Copiado!')).catch(()=>showToast('Erro ao copiar'));}
