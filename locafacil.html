@@ -396,7 +396,7 @@ textarea.form-input{resize:vertical;min-height:72px;}
         <div class="form-section-title">Período</div>
         <div class="form-field">
           <div class="form-2col">
-            <div><label class="form-label">Entrega</label><input type="date" class="form-input" id="m-entrega"/></div>
+            <div><label class="form-label">Entrega</label><input type="date" class="form-input" id="m-entrega" oninput="document.getElementById('m-recolhimento').min=this.value"/></div>
             <div><label class="form-label">Recolhimento</label><input type="date" class="form-input" id="m-recolhimento"/></div>
           </div>
         </div>
@@ -946,6 +946,7 @@ async function salvarAluguel() {
   const recolh   = document.getElementById('m-recolhimento').value;
   if (!cliente) { showToast('Informe o nome do cliente'); return; }
   if (!entrega||!recolh) { showToast('Informe as datas'); return; }
+  if (recolh < entrega) { showToast('⚠️ Recolhimento não pode ser antes da entrega'); return; }
 
   const itens  = Object.entries(selecionados).map(([id,qty])=>({id:parseInt(id),qty})).filter(i=>i.qty>0);
   const status = entrega <= today() ? 'ativo' : 'agendado';
