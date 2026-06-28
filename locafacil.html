@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>LocaFácil</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+  --black:   #0F0F0F;
+  --black2:  #1C1C1E;
+  --black3:  #2C2C2E;
+  --gray1:   #3A3A3C;
+  --gray2:   #636366;
+  --gray3:   #AEAEB2;
+  --gray4:   #E5E5EA;
+  --gray5:   #F2F2F7;
+  --white:   #FFFFFF;
+  --orange:  #FF6B00;
+  --orange2: #FF8C38;
+  --orange-bg: #FFF3EA;
+  --green:   #34C759;
+  --green-bg:#E8F8ED;
+  --red:     #FF3B30;
+  --red-bg:  #FFEEED;
+  --yellow:  #FF9500;
+  --yellow-bg:#FFF5E6;
+  --surface: #FFFFFF;
+  --bg:      #F2F2F7;
+  --text:    #0F0F0F;
+  --text2:   #636366;
+  --text3:   #AEAEB2;
+  --border:  #F2F2F7;
+  --input-bg:#F2F2F7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #1C1C1E;
+    --bg:      #000000;
+    --text:    #F2F2F7;
+    --text2:   #AEAEB2;
+    --text3:   #636366;
+    --border:  #3A3A3C;
+    --input-bg:#2C2C2E;
+    --orange-bg:#2D1A00;
+    --green-bg: #0D2E1A;
+    --red-bg:   #2D0D0B;
+    --yellow-bg:#2D1F00;
+    --gray5:    #2C2C2E;
+    --gray4:    #3A3A3C;
+    --gray3:    #636366;
+    --gray2:    #AEAEB2;
+    --black3:   #3A3A3C;
+    --black2:   #1C1C1E;
+  }
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+body {
+  font-family:'Inter',-apple-system,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── LOADING OVERLAY ── */
+#loading-overlay {
+  position:fixed;inset:0;
+  background:var(--bg);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  z-index:999;gap:16px;
+}
+.spinner {
+  width:36px;height:36px;
+  border:3px solid var(--border);
+  border-top-color:var(--orange);
+  border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:14px;font-weight:600;color:var(--text2);}
+
+
+/* ── APP ── */
+#app{display:none;flex-direction:column;min-height:100vh;padding-bottom:80px;}
+
+.app-header{background:#000;padding:16px 20px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.header-brand{display:flex;align-items:center;gap:10px;}
+.header-logo-box{width:34px;height:34px;background:var(--orange);border-radius:9px;display:flex;align-items:center;justify-content:center;}
+.header-wordmark{font-size:19px;font-weight:900;letter-spacing:-.8px;color:#fff;}
+.header-wordmark span{color:var(--orange);}
+.header-right{display:flex;align-items:center;gap:10px;}
+.header-date{font-size:12px;color:#AEAEB2;font-weight:500;}
+
+/* sync indicator */
+.btn-refresh{background:#2C2C2E;border:none;color:#AEAEB2;width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:color .15s,background .15s;flex-shrink:0;}
+.btn-refresh:hover{color:#fff;background:#3A3A3C;}
+.btn-refresh.spinning svg{animation:spin .7s linear infinite;}
+.btn-refresh.error{color:var(--red);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#000;border-top:1px solid #2C2C2E;display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom,0);}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px 12px;cursor:pointer;gap:4px;border:none;background:transparent;font-family:'Inter',sans-serif;}
+.nav-icon{color:#636366;transition:color .15s;}
+.nav-label{font-size:10px;font-weight:600;color:#636366;letter-spacing:.2px;transition:color .15s;}
+.nav-item.active .nav-icon,.nav-item.active .nav-label{color:var(--orange);}
+
+.main-content{padding:20px 16px;max-width:640px;margin:0 auto;width:100%;}
+
+.sec-header{margin-bottom:20px;}
+.sec-title{font-size:26px;font-weight:900;letter-spacing:-1px;color:var(--text);}
+.sec-sub{font-size:14px;color:var(--text2);margin-top:3px;font-weight:500;}
+
+.card{background:var(--surface);border-radius:16px;overflow:hidden;margin-bottom:14px;}
+.card-header{padding:16px 18px 0;display:flex;align-items:center;justify-content:space-between;}
+.card-title{font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center;gap:6px;}
+
+.stat-row{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;}
+.stat-tile{background:var(--surface);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:10px;}
+.stat-icon-wrap{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;}
+.stat-num{font-size:32px;font-weight:900;letter-spacing:-1.5px;line-height:1;color:var(--text);}
+.stat-label{font-size:12px;font-weight:600;color:var(--text2);margin-top:2px;}
+
+.list-item{display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--border);}
+.list-item:last-child{border-bottom:none;}
+.list-item-icon{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.list-item-body{flex:1;min-width:0;}
+.list-item-name{font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.list-item-meta{font-size:12px;color:var(--text2);margin-top:2px;font-weight:500;}
+.list-item-right{text-align:right;flex-shrink:0;}
+.list-item-val{font-size:20px;font-weight:900;letter-spacing:-.5px;}
+.list-item-sub{font-size:11px;color:var(--text3);font-weight:500;}
+
+.badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.2px;}
+.badge-orange{background:var(--orange-bg);color:var(--orange);}
+.badge-green{background:var(--green-bg);color:var(--green);}
+.badge-red{background:var(--red-bg);color:var(--red);}
+.badge-yellow{background:var(--yellow-bg);color:var(--yellow);}
+.badge-gray{background:var(--input-bg);color:var(--text2);}
+
+.aluguel-card{background:var(--surface);border-radius:16px;margin-bottom:12px;overflow:hidden;}
+.aluguel-top{display:flex;align-items:flex-start;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid var(--border);}
+.aluguel-nome{font-size:17px;font-weight:800;letter-spacing:-.3px;color:var(--text);}
+.aluguel-info{font-size:12px;color:var(--text2);margin-top:4px;font-weight:500;line-height:1.6;}
+.aluguel-itens-wrap{padding:12px 18px;display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--border);}
+.item-chip{background:var(--input-bg);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;color:var(--text);}
+.aluguel-obs{padding:10px 18px;font-size:12px;color:var(--text2);border-bottom:1px solid var(--border);font-weight:500;}
+.aluguel-actions{display:flex;}
+.action-btn{flex:1;padding:13px 8px;border:none;font-size:13px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;border-right:1px solid var(--border);background:var(--surface);color:var(--text2);transition:background .12s;}
+.action-btn:last-child{border-right:none;}
+.action-btn:hover{background:var(--input-bg);}
+.action-btn.primary{color:var(--orange);}
+.action-btn.success{color:var(--green);}
+.action-btn.danger{color:var(--red);}
+
+.disponib-row{display:flex;align-items:center;padding:13px 18px;border-bottom:1px solid var(--border);gap:12px;}
+.disponib-row:last-child{border-bottom:none;}
+.disponib-name{flex:1;font-size:14px;font-weight:600;color:var(--text);}
+.avail-bar-wrap{width:60px;height:6px;background:var(--gray4);border-radius:3px;overflow:hidden;}
+.avail-bar{height:100%;border-radius:3px;transition:width .3s;}
+
+.form-card{background:var(--surface);border-radius:16px;overflow:hidden;margin-bottom:14px;}
+.form-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);padding:16px 18px 6px;}
+.form-field{padding:0 18px 14px;}
+.form-label{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:7px;display:block;}
+.form-input{width:100%;background:var(--input-bg);border:1.5px solid transparent;border-radius:10px;padding:12px 14px;font-size:15px;font-family:'Inter',sans-serif;color:var(--text);outline:none;transition:border-color .15s;-webkit-appearance:none;}
+.form-input:focus{border-color:var(--orange);background:var(--surface);}
+.form-input::placeholder{color:var(--text3);}
+select.form-input{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23636366' stroke-width='1.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+textarea.form-input{resize:vertical;min-height:72px;}
+.form-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+.qty-row{display:flex;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border);gap:12px;}
+.qty-row:last-child{border-bottom:none;}
+.qty-item-name{flex:1;font-size:14px;font-weight:600;color:var(--text);}
+.qty-item-stock{font-size:11px;color:var(--text3);}
+.qty-ctrl{display:flex;align-items:center;gap:12px;}
+.qty-btn{width:32px;height:32px;border-radius:50%;border:none;font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s;font-family:'Inter',sans-serif;}
+.qty-btn-minus{background:var(--input-bg);color:var(--text);}
+.qty-btn-minus:hover{background:var(--red-bg);color:var(--red);}
+.qty-btn-plus{background:var(--orange);color:#fff;}
+.qty-btn-plus:hover{background:var(--orange2);}
+.qty-val{font-size:17px;font-weight:800;width:24px;text-align:center;color:var(--text);}
+.qty-input{width:52px;text-align:center;font-size:17px;font-weight:800;font-family:'Inter',sans-serif;color:var(--text);background:var(--input-bg);border:1.5px solid transparent;border-radius:8px;padding:5px 4px;outline:none;-moz-appearance:textfield;}
+.qty-input:focus{border-color:var(--orange);}
+.qty-input::-webkit-inner-spin-button,.qty-input::-webkit-outer-spin-button{-webkit-appearance:none;}
+
+.pag-options{display:flex;gap:8px;}
+.pag-btn{flex:1;padding:11px 6px;border-radius:10px;border:1.5px solid var(--border);background:var(--input-bg);color:var(--text2);font-size:12px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:all .15s;text-align:center;}
+.pag-btn.active{border-color:var(--orange);background:var(--orange-bg);color:var(--orange);}
+.btn-primary{width:100%;background:var(--orange);color:#fff;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn-primary:hover{background:var(--orange2);}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+
+.btn-secondary{width:100%;background:var(--input-bg);color:var(--text);border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn-secondary:hover{background:var(--gray4);}
+
+.fab{position:fixed;bottom:88px;right:20px;background:var(--orange);color:#fff;border:none;border-radius:28px;padding:14px 22px;font-size:15px;font-weight:800;font-family:'Inter',sans-serif;cursor:pointer;box-shadow:0 8px 28px rgba(255,107,0,.45);display:flex;align-items:center;gap:8px;z-index:80;transition:transform .15s,box-shadow .15s;}
+.fab:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(255,107,0,.5);}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(3px);}
+.modal-sheet{background:var(--surface);border-radius:22px 22px 0 0;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;position:relative;}
+.modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 0;}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 4px;}
+.modal-title{font-size:20px;font-weight:900;letter-spacing:-.5px;color:var(--text);}
+.modal-close{width:30px;height:30px;border-radius:50%;background:var(--input-bg);border:none;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);font-weight:700;}
+.modal-body{padding:16px 0 32px;}
+
+.estoque-edit-item{display:flex;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border);gap:12px;}
+.estoque-edit-item:last-child{border-bottom:none;}
+.estoque-edit-name{flex:1;font-size:14px;font-weight:600;color:var(--text);}
+.estoque-edit-meta{font-size:12px;color:var(--text2);}
+.btn-icon{width:32px;height:32px;border-radius:8px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:background .12s;}
+.btn-icon-edit{background:var(--orange-bg);color:var(--orange);}
+.btn-icon-del{background:var(--red-bg);color:var(--red);}
+.btn-icon-edit:hover{background:var(--orange);color:#fff;}
+.btn-icon-del:hover{background:var(--red);color:#fff;}
+
+.empty{text-align:center;padding:40px 20px;}
+.empty-icon{font-size:44px;margin-bottom:12px;}
+.empty-title{font-size:16px;font-weight:700;color:var(--text);}
+.empty-text{font-size:14px;color:var(--text2);}
+
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(8px);background:#000;color:#fff;padding:11px 22px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.3);}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+.hidden{display:none!important;}
+
+@media(min-width:600px){
+  .stat-row{grid-template-columns:repeat(4,1fr);}
+  .modal-overlay{align-items:center;padding:24px;}
+  .modal-sheet{border-radius:22px;max-height:88vh;}
+}
+@supports(padding-bottom:env(safe-area-inset-bottom)){
+  #app{padding-bottom:calc(80px + env(safe-area-inset-bottom));}
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Carregando...</div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="app-header">
+    <div class="header-brand">
+      <div class="header-logo-box">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M10 2L18 6.5V13.5L10 18L2 13.5V6.5L10 2Z" stroke="white" stroke-width="1.5" fill="none"/>
+          <circle cx="10" cy="10" r="2.5" fill="white"/>
+        </svg>
+      </div>
+      <div class="header-wordmark">Loca<span>Fácil</span></div>
+    </div>
+    <div class="header-right">
+      <button class="btn-refresh" id="btn-refresh" onclick="manualRefresh()" title="Atualizar"><svg id="refresh-icon" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.6 0 3 .68 4 1.76M13.5 2.5v3h-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="header-date" id="header-date">—</div>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <!-- PAINEL -->
+    <div id="tab-painel">
+      <div class="sec-header">
+        <div class="sec-title" id="painel-greeting">Bom dia!</div>
+        <div class="sec-sub" id="painel-date">—</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-tile">
+          <div class="stat-icon-wrap" style="background:var(--orange-bg)">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="5" width="16" height="12" rx="2" stroke="#FF6B00" stroke-width="1.5"/><path d="M6 5V4a2 2 0 0 1 4 0v1M10 5V4a2 2 0 0 1 4 0v1" stroke="#FF6B00" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+          <div><div class="stat-num" id="stat-ativos">—</div><div class="stat-label">Em campo</div></div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-icon-wrap" style="background:#EBF5FF">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 10l7 7 7-7M10 3v14" stroke="#007AFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div><div class="stat-num" id="stat-saem" style="color:#007AFF">—</div><div class="stat-label">Saem hoje</div></div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-icon-wrap" style="background:var(--green-bg)">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M17 10l-7-7-7 7M10 17V3" stroke="#34C759" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div><div class="stat-num" id="stat-voltam" style="color:var(--green)">—</div><div class="stat-label">Voltam hoje</div></div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-icon-wrap" style="background:var(--red-bg)">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="#FF3B30" stroke-width="1.5"/><path d="M10 7v4M10 13v.5" stroke="#FF3B30" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+          <div><div class="stat-num" id="stat-atrasados" style="color:var(--red)">—</div><div class="stat-label">Atrasados</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📤 Saem Hoje</div></div>
+        <div id="painel-saem"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📥 Recolher Hoje</div></div>
+        <div id="painel-voltam"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title" style="color:var(--red)">⚠️ Recolhimento Atrasado</div></div>
+        <div id="painel-atrasados"></div>
+      </div>
+    </div>
+
+    <!-- ESTOQUE -->
+    <div id="tab-estoque" class="hidden">
+      <div class="sec-header"><div class="sec-title">Estoque</div><div class="sec-sub">Disponível agora</div></div>
+      <div class="card"><div id="estoque-list"></div></div>
+      <button class="btn-secondary" onclick="openModalEstoque()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Adicionar / Editar Item
+      </button>
+    </div>
+
+    <!-- ALUGUÉIS -->
+    <div id="tab-alugueis" class="hidden">
+      <div class="sec-header"><div class="sec-title">Aluguéis</div><div class="sec-sub">Ativos e agendados</div></div>
+      <div id="alugueis-list"></div>
+    </div>
+
+    <!-- DISPONIBILIDADE -->
+    <div id="tab-disponib" class="hidden">
+      <div class="sec-header"><div class="sec-title">Disponibilidade</div><div class="sec-sub">Veja o que está livre numa data</div></div>
+      <div class="form-card">
+        <div class="form-section-title">Escolha a data do evento</div>
+        <div class="form-field"><input type="date" class="form-input" id="disponib-data" oninput="calcDisponib()"/></div>
+      </div>
+      <div id="disponib-result"></div>
+    </div>
+
+    <!-- HISTÓRICO -->
+    <div id="tab-historico" class="hidden">
+      <div class="sec-header"><div class="sec-title">Histórico</div><div class="sec-sub">Aluguéis finalizados</div></div>
+      <div id="historico-list"></div>
+    </div>
+  </div>
+
+  <button class="fab" onclick="openModalAluguel()">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+    Novo Aluguel
+  </button>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="showTab('painel',this)">
+      <svg class="nav-icon" width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="2" y="2" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.6"/><rect x="12" y="2" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.6"/><rect x="2" y="12" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.6"/><rect x="12" y="12" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span class="nav-label">Painel</span>
+    </button>
+    <button class="nav-item" onclick="showTab('estoque',this)">
+      <svg class="nav-icon" width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M3 8l8-5 8 5v9l-8 4-8-4V8Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M11 3v14M3 8l8 5 8-5" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span class="nav-label">Estoque</span>
+    </button>
+    <button class="nav-item" onclick="showTab('alugueis',this)">
+      <svg class="nav-icon" width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="4" width="16" height="15" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M7 2v4M15 2v4M3 9h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span class="nav-label">Aluguéis</span>
+    </button>
+    <button class="nav-item" onclick="showTab('disponib',this)">
+      <svg class="nav-icon" width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.6"/><path d="M19 19l-3-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span class="nav-label">Consultar</span>
+    </button>
+    <button class="nav-item" onclick="showTab('historico',this)">
+      <svg class="nav-icon" width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M3 5h16M3 9h10M3 13h12M3 17h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span class="nav-label">Histórico</span>
+    </button>
+  </nav>
+</div>
+
+<!-- MODAL ALUGUEL -->
+<div class="modal-overlay hidden" id="modal-aluguel" onclick="overlayClose(event,'modal-aluguel')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title">Novo Aluguel</div>
+      <button class="modal-close" onclick="closeModal('modal-aluguel')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-card">
+        <div class="form-section-title">Cliente</div>
+        <div class="form-field"><label class="form-label">Nome *</label><input type="text" class="form-input" id="m-cliente" placeholder="Ex: Maria Silva"/></div>
+        <div class="form-field"><label class="form-label">Telefone</label><input type="tel" class="form-input" id="m-fone" placeholder="(96) 99999-9999"/></div>
+        <div class="form-field"><label class="form-label">Endereço do evento</label><input type="text" class="form-input" id="m-endereco" placeholder="Rua, número, bairro..."/></div>
+      </div>
+      <div class="form-card">
+        <div class="form-section-title">Período</div>
+        <div class="form-field">
+          <div class="form-2col">
+            <div><label class="form-label">Entrega</label><input type="date" class="form-input" id="m-entrega"/></div>
+            <div><label class="form-label">Recolhimento</label><input type="date" class="form-input" id="m-recolhimento"/></div>
+          </div>
+        </div>
+        <div class="form-field">
+          <div class="form-2col">
+            <div><label class="form-label">Horário entrega</label><input type="time" class="form-input" id="m-hora-entrega"/></div>
+            <div><label class="form-label">Horário recolhimento</label><input type="time" class="form-input" id="m-hora-recolhimento"/></div>
+          </div>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="form-section-title">Itens do Aluguel</div>
+        <div id="modal-itens-list"></div>
+      </div>
+      <div class="form-card">
+        <div class="form-section-title">Pagamento</div>
+        <div class="form-field">
+          <div class="pag-options">
+            <button type="button" class="pag-btn" id="pag-sim" onclick="setPag('Sim')">✅ Pago</button>
+            <button type="button" class="pag-btn" id="pag-nao" onclick="setPag('Não')">❌ Não pago</button>
+            <button type="button" class="pag-btn" id="pag-outro" onclick="setPag('Outro')">✏️ Outro</button>
+          </div>
+          <input type="text" class="form-input" id="m-pag-outro" placeholder="Ex: Sinal pago, restante na entrega..." style="margin-top:10px;display:none;"/>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="form-section-title">Observações</div>
+        <div class="form-field"><textarea class="form-input" id="m-obs" placeholder="Cor de toalha, horário específico..."></textarea></div>
+      </div>
+      <div style="padding:0 16px;">
+        <button class="btn-primary" id="btn-salvar-aluguel" onclick="salvarAluguel()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8l4.5 4.5L14 4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Salvar Aluguel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ESTOQUE -->
+<div class="modal-overlay hidden" id="modal-estoque" onclick="overlayClose(event,'modal-estoque')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title">Gerenciar Estoque</div>
+      <button class="modal-close" onclick="closeModal('modal-estoque')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-card">
+        <div class="form-section-title" id="estoque-form-title">Novo Item</div>
+        <div class="form-field"><label class="form-label">Nome do item</label><input type="text" class="form-input" id="e-nome" placeholder="Ex: Cadeira plástica"/></div>
+        <div class="form-field">
+          <div class="form-2col">
+            <div><label class="form-label">Quantidade</label><input type="number" class="form-input" id="e-qtd" placeholder="0" min="0"/></div>
+            <div><label class="form-label">Unidade</label><select class="form-input" id="e-unidade"><option>unidade</option><option>jogo</option><option>conjunto</option><option>metro</option><option>par</option></select></div>
+          </div>
+        </div>
+        <div class="form-field">
+          <button class="btn-primary" id="btn-salvar-item" onclick="salvarItem()">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span id="btn-salvar-item-label">Adicionar Item</span>
+          </button>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="form-section-title">Itens Cadastrados</div>
+        <div id="estoque-edit-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ════════════════════════════════════
+   SUPABASE
+════════════════════════════════════ */
+const SUPA_URL = 'https://bdjkuyfmzllciwowjcdx.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkamt1eWZtemxsY2l3b3dqY2R4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNTU0NTQsImV4cCI6MjA5NzczMTQ1NH0.yqPKM5-AympsDbWlEsW7z5ShXyrsoq-XogSd5UsvLNA';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+/* ════════════════════════════════════
+   ESTADO LOCAL (cache)
+════════════════════════════════════ */
+let estoque  = [];
+let alugueis = [];
+
+/* ════════════════════════════════════
+   SYNC DOT
+════════════════════════════════════ */
+function setSyncState(state) {
+  const btn = document.getElementById('btn-refresh');
+  if (!btn) return;
+  btn.className = 'btn-refresh' + (state === 'syncing' ? ' spinning' : state === 'error' ? ' error' : '');
+  btn.title = state === 'syncing' ? 'Atualizando...' : state === 'error' ? 'Erro de conexão — toque para tentar' : 'Atualizar';
+}
+
+async function manualRefresh() {
+  setSyncState('syncing');
+  try {
+    await loadAllData();
+    renderAll();
+    setSyncState('ok');
+    showToast('✅ Atualizado!');
+  } catch(e) {
+    setSyncState('error');
+    showToast('Sem conexão. Tente novamente.');
+  }
+}
+
+/* ════════════════════════════════════
+   INICIALIZAÇÃO
+════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', async () => {
+  await bootApp();
+});
+
+let autoRefreshTimer = null;
+
+async function silentRefresh() {
+  try {
+    await loadAllData();
+    // re-render only the currently visible tab
+    const tabs = ['painel','estoque','alugueis','disponib','historico'];
+    for (const t of tabs) {
+      const el = document.getElementById('tab-' + t);
+      if (el && !el.classList.contains('hidden')) {
+        const renders = { painel:renderPainel, estoque:renderEstoque, alugueis:renderAlugueis, historico:renderHistorico };
+        if (renders[t]) renders[t]();
+        break;
+      }
+    }
+    // always keep painel stats fresh
+    renderPainel();
+  } catch(e) { setSyncState('error'); }
+}
+
+async function bootApp() {
+  document.getElementById('loading-overlay').style.display = 'flex';
+  try {
+    await loadAllData();
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    setDate();
+    renderAll();
+    setSyncState('ok');
+    // auto-refresh every 30 seconds
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = setInterval(silentRefresh, 30000);
+    // also refresh when user comes back to the tab/app
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') silentRefresh();
+    }, { once: false });
+  } catch(e) {
+    document.getElementById('loading-overlay').style.display = 'none';
+    showToast('Erro ao conectar. Verifique a internet.');
+  }
+}
+
+async function loadAllData() {
+  setSyncState('syncing');
+  const [resE, resA] = await Promise.all([
+    sb.from('estoque').select('*').order('id'),
+    sb.from('alugueis').select('*').order('entrega')
+  ]);
+  if (resE.error) throw resE.error;
+  if (resA.error) throw resA.error;
+  estoque  = resE.data || [];
+  alugueis = resA.data || [];
+  setSyncState('ok');
+}
+
+
+
+/* ════════════════════════════════════
+   TABS
+════════════════════════════════════ */
+function showTab(tab, btn) {
+  ['painel','estoque','alugueis','disponib','historico'].forEach(t =>
+    document.getElementById('tab-'+t).classList.add('hidden'));
+  document.getElementById('tab-'+tab).classList.remove('hidden');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  // sempre busca dados frescos ao trocar de aba
+  silentRefresh();
+}
+
+function renderAll() {
+  renderPainel(); renderEstoque(); renderAlugueis(); renderHistorico();
+}
+
+/* ════════════════════════════════════
+   UTILS
+════════════════════════════════════ */
+function today() { return new Date().toISOString().slice(0,10); }
+
+function fmt(s) {
+  if (!s) return '—';
+  const [y,m,d] = s.slice(0,10).split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function setDate() {
+  const now  = new Date();
+  const dias  = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+  const meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  const h = now.getHours();
+  document.getElementById('painel-greeting').textContent = (h<12?'Bom dia! 👋':h<18?'Boa tarde! 👋':'Boa noite! 👋');
+  document.getElementById('painel-date').textContent = `${dias[now.getDay()]}, ${now.getDate()} de ${meses[now.getMonth()]}`;
+  document.getElementById('header-date').textContent = `${now.getDate()}/${now.getMonth()+1}`;
+}
+
+/* ════════════════════════════════════
+   PAINEL
+════════════════════════════════════ */
+function renderPainel() {
+  const hoje = today();
+  const ativos     = alugueis.filter(a => a.status === 'ativo');
+  const saemHoje   = alugueis.filter(a => a.entrega?.slice(0,10) === hoje && a.status !== 'finalizado');
+  const voltamHoje = alugueis.filter(a => a.recolhimento?.slice(0,10) === hoje && a.status === 'ativo');
+  const atrasados  = alugueis.filter(a => a.recolhimento?.slice(0,10) < hoje && a.status === 'ativo');
+
+  document.getElementById('stat-ativos').textContent    = ativos.length;
+  document.getElementById('stat-saem').textContent      = saemHoje.length;
+  document.getElementById('stat-voltam').textContent    = voltamHoje.length;
+  document.getElementById('stat-atrasados').textContent = atrasados.length;
+
+  renderPainelList('painel-saem', saemHoje, 'saem');
+  renderPainelList('painel-voltam', voltamHoje, 'volta');
+  renderPainelList('painel-atrasados', atrasados, 'atrasado');
+}
+
+function renderPainelList(id, list, tipo) {
+  const el = document.getElementById(id);
+  if (!list.length) { el.innerHTML=`<div class="empty" style="padding:18px 0"><div class="empty-text">Nenhum</div></div>`; return; }
+  const labelDate = a => tipo==='saem'?`Entregar em ${fmt(a.entrega)}`:tipo==='volta'?`Recolher em ${fmt(a.recolhimento)}`:`Venceu em ${fmt(a.recolhimento)}`;
+  el.innerHTML = list.map(a => `
+    <div class="list-item">
+      <div class="list-item-icon" style="background:${tipo==='atrasado'?'var(--red-bg)':tipo==='volta'?'var(--green-bg)':'var(--orange-bg)'}">
+        <span style="font-size:16px">${tipo==='saem'?'📤':tipo==='volta'?'📥':'⚠️'}</span>
+      </div>
+      <div class="list-item-body">
+        <div class="list-item-name">${a.cliente}</div>
+        <div class="list-item-meta">${labelDate(a)}${a.endereco?' · '+a.endereco:''}</div>
+      </div>
+    </div>`).join('');
+}
+
+/* ════════════════════════════════════
+   ESTOQUE
+════════════════════════════════════ */
+function calcEmCampo(itemId, dataInicio, dataFim) {
+  return alugueis
+    .filter(a => a.status==='ativo' && a.entrega?.slice(0,10)<=dataFim && a.recolhimento?.slice(0,10)>=dataInicio)
+    .reduce((acc,a) => {
+      const it = (a.itens||[]).find(x=>x.id===itemId);
+      return acc + (it?it.qty:0);
+    }, 0);
+}
+
+function renderEstoque() {
+  const hoje = today();
+  const el   = document.getElementById('estoque-list');
+  if (!estoque.length) { el.innerHTML=`<div class="empty"><div class="empty-icon">📦</div><div class="empty-title">Nenhum item</div><div class="empty-text">Adicione itens ao estoque</div></div>`; return; }
+  el.innerHTML = estoque.map(item => {
+    const campo = calcEmCampo(item.id, hoje, hoje);
+    const disp  = item.qtd - campo;
+    const pct   = item.qtd>0 ? disp/item.qtd : 1;
+    const color = pct<=0.2?'var(--red)':pct<=0.5?'var(--yellow)':'var(--green)';
+    const barC  = pct<=0.2?'#FF3B30':pct<=0.5?'#FF9500':'#34C759';
+    return `<div class="list-item">
+      <div class="list-item-icon" style="background:var(--input-bg)">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="6" width="14" height="10" rx="2" stroke="#636366" stroke-width="1.4"/><path d="M5 6V5a4 4 0 0 1 8 0v1" stroke="#636366" stroke-width="1.4" stroke-linecap="round"/></svg>
+      </div>
+      <div class="list-item-body">
+        <div class="list-item-name">${item.nome}</div>
+        <div class="list-item-meta">${campo} em campo · ${item.qtd} total · ${item.unidade}</div>
+        <div class="avail-bar-wrap" style="margin-top:6px"><div class="avail-bar" style="width:${Math.max(4,pct*100)}%;background:${barC}"></div></div>
+      </div>
+      <div class="list-item-right">
+        <div class="list-item-val" style="color:${color}">${disp}</div>
+        <div class="list-item-sub">livre${disp!==1?'s':''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ════════════════════════════════════
+   ALUGUÉIS
+════════════════════════════════════ */
+function renderAlugueis() {
+  const el   = document.getElementById('alugueis-list');
+  const hoje = today();
+  const list = alugueis.filter(a=>a.status!=='finalizado').sort((a,b)=>a.entrega?.localeCompare(b.entrega));
+  if (!list.length) { el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Sem aluguéis ativos</div><div class="empty-text">Toque em "Novo Aluguel" para começar</div></div>`; return; }
+
+  el.innerHTML = list.map(a => {
+    const atrasado = a.status==='ativo' && a.recolhimento?.slice(0,10) < hoje;
+    const badge = a.status==='agendado'
+      ? `<span class="badge badge-yellow">Agendado</span>`
+      : atrasado ? `<span class="badge badge-red">Atrasado</span>`
+      : `<span class="badge badge-green">Em campo</span>`;
+
+    const chips = (a.itens||[]).filter(i=>i.qty>0).map(i=>{
+      const est=estoque.find(e=>e.id===i.id);
+      return est?`<span class="item-chip">${est.nome} · ${i.qty}</span>`:'';
+    }).join('');
+
+    const btnSaiu      = a.status==='agendado' ? `<button class="action-btn primary" onclick="marcarSaiu(${a.id})">📤 Confirmar Saída</button>` : '';
+    const btnDesfazer  = a.status==='ativo'    ? `<button class="action-btn" onclick="desfazerSaida(${a.id})" style="color:var(--yellow)">↩️ Desfazer Saída</button>` : '';
+    const btnVoltou    = a.status==='ativo'    ? `<button class="action-btn success" onclick="marcarVoltou(${a.id})">📥 Voltou Tudo</button>` : '';
+    const btnCompartilhar = `<button class="action-btn" onclick="compartilhar(${a.id})" style="color:#007AFF">🔗 Compartilhar</button>`;
+
+    return `<div class="aluguel-card">
+      <div class="aluguel-top">
+        <div>
+          <div class="aluguel-nome">${a.cliente}</div>
+          <div class="aluguel-info">
+            📤 Entrega: ${fmt(a.entrega)}${a.hora_entrega ? ' às '+a.hora_entrega : ''}<br>
+            📥 Recolhimento: ${fmt(a.recolhimento)}${a.hora_recolhimento ? ' às '+a.hora_recolhimento : ''}
+            ${a.endereco?`<br>📍 ${a.endereco}`:''}
+            ${a.fone?`<br>📱 ${a.fone}`:''}
+          </div>
+        </div>
+        ${badge}
+      </div>
+      ${chips?`<div class="aluguel-itens-wrap">${chips}</div>`:''}
+      ${a.pagamento ? `<div class="aluguel-obs">💰 Pagamento: <b>${a.pagamento}</b></div>` : ''}
+      ${a.obs?`<div class="aluguel-obs">💬 ${a.obs}</div>`:''}
+      <div class="aluguel-actions">
+        ${btnSaiu}${btnDesfazer}${btnVoltou}${btnCompartilhar}
+        <button class="action-btn danger" onclick="excluirAluguel(${a.id})">🗑 Excluir</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function marcarSaiu(id) {
+  setSyncState('syncing');
+  const {error} = await sb.from('alugueis').update({status:'ativo'}).eq('id',id);
+  if (error) { setSyncState('error'); showToast('Erro ao atualizar'); return; }
+  await loadAllData();
+  renderAlugueis(); renderPainel(); renderEstoque();
+  showToast('✅ Saída confirmada');
+}
+
+async function desfazerSaida(id) {
+  if (!confirm('Desfazer a saída? O agendamento volta para "Aguardando entrega".')) return;
+  setSyncState('syncing');
+  const {error} = await sb.from('alugueis').update({status:'agendado'}).eq('id',id);
+  if (error) { setSyncState('error'); showToast('Erro ao desfazer'); return; }
+  await loadAllData();
+  renderAlugueis(); renderPainel(); renderEstoque();
+  showToast('↩️ Saída desfeita');
+}
+
+async function marcarVoltou(id) {
+  setSyncState('syncing');
+  const {error} = await sb.from('alugueis').update({status:'finalizado', voltou:today()}).eq('id',id);
+  if (error) { setSyncState('error'); showToast('Erro ao atualizar'); return; }
+  await loadAllData();
+  renderAll();
+  showToast('✅ Recolhimento registrado');
+}
+
+async function excluirAluguel(id) {
+  if (!confirm('Excluir este aluguel?')) return;
+  setSyncState('syncing');
+  const {error} = await sb.from('alugueis').delete().eq('id',id);
+  if (error) { setSyncState('error'); showToast('Erro ao excluir'); return; }
+  await loadAllData();
+  renderAlugueis(); renderPainel(); renderEstoque();
+  showToast('Aluguel removido');
+}
+
+async function excluirHistorico(id) {
+  if (!confirm('Apagar este registro do histórico?')) return;
+  setSyncState('syncing');
+  const {error} = await sb.from('alugueis').delete().eq('id',id);
+  if (error) { setSyncState('error'); showToast('Erro ao apagar'); return; }
+  await loadAllData();
+  renderHistorico();
+  showToast('Registro apagado');
+}
+
+/* ════════════════════════════════════
+   HISTÓRICO
+════════════════════════════════════ */
+function renderHistorico() {
+  const el  = document.getElementById('historico-list');
+  const fin = alugueis.filter(a=>a.status==='finalizado').sort((a,b)=>(b.voltou||'').localeCompare(a.voltou||''));
+  if (!fin.length) { el.innerHTML=`<div class="empty"><div class="empty-icon">📁</div><div class="empty-title">Nenhum finalizado</div><div class="empty-text">Os aluguéis concluídos aparecem aqui</div></div>`; return; }
+  el.innerHTML = fin.map(a => {
+    const chips=(a.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?`<span class="item-chip">${est.nome} · ${i.qty}</span>`:''}).join('');
+    return `<div class="aluguel-card" style="opacity:.85">
+      <div class="aluguel-top">
+        <div>
+          <div class="aluguel-nome">${a.cliente}</div>
+          <div class="aluguel-info">📤 ${fmt(a.entrega)}${a.hora_entrega?' às '+a.hora_entrega:''} → 📥 ${fmt(a.recolhimento)}${a.hora_recolhimento?' às '+a.hora_recolhimento:''}<br>✅ Voltou: ${fmt(a.voltou)}</div>
+        </div>
+        <span class="badge badge-gray">Finalizado</span>
+      </div>
+      ${chips?`<div class="aluguel-itens-wrap">${chips}</div>`:''}
+      ${a.pagamento?`<div class="aluguel-obs">💰 Pagamento: <b>${a.pagamento}</b></div>`:''}
+      <div class="aluguel-actions">
+        <button class="action-btn danger" onclick="excluirHistorico(${a.id})">🗑 Apagar do histórico</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ════════════════════════════════════
+   DISPONIBILIDADE
+════════════════════════════════════ */
+function calcDisponib() {
+  const data = document.getElementById('disponib-data').value;
+  const el   = document.getElementById('disponib-result');
+  if (!data) { el.innerHTML=''; return; }
+  const rows = estoque.map(item => {
+    const campo = calcEmCampo(item.id, data, data);
+    const disp  = item.qtd - campo;
+    const pct   = item.qtd>0 ? disp/item.qtd : 1;
+    const badge = pct<=0 ? `<span class="badge badge-red">Indisponível</span>`
+                : pct<0.3 ? `<span class="badge badge-yellow">${disp} livre${disp!==1?'s':''}</span>`
+                :            `<span class="badge badge-green">${disp} livre${disp!==1?'s':''}</span>`;
+    const barC = pct<=0.2?'#FF3B30':pct<=0.5?'#FF9500':'#34C759';
+    return `<div class="disponib-row">
+      <div class="disponib-name">${item.nome}</div>
+      <div class="avail-bar-wrap"><div class="avail-bar" style="width:${Math.max(4,pct*100)}%;background:${barC}"></div></div>
+      ${badge}
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div class="card">${rows}</div>`;
+}
+
+/* ════════════════════════════════════
+   MODAL ALUGUEL
+════════════════════════════════════ */
+let selecionados = {};
+let pagamentoSelecionado = null;
+
+function setPag(val) {
+  pagamentoSelecionado = val;
+  ['sim','nao','outro'].forEach(k => document.getElementById('pag-'+k).classList.remove('active'));
+  const map = {'Sim':'sim','Não':'nao','Outro':'outro'};
+  if (map[val]) document.getElementById('pag-'+map[val]).classList.add('active');
+  document.getElementById('m-pag-outro').style.display = val === 'Outro' ? 'block' : 'none';
+  if (val !== 'Outro') document.getElementById('m-pag-outro').value = '';
+}
+
+function openModalAluguel() {
+  selecionados = {};
+  ['m-cliente','m-fone','m-endereco','m-obs','m-hora-entrega','m-hora-recolhimento','m-pag-outro'].forEach(id => document.getElementById(id).value='');
+  pagamentoSelecionado = null;
+  ['sim','nao','outro'].forEach(k => document.getElementById('pag-'+k).classList.remove('active'));
+  document.getElementById('m-pag-outro').style.display = 'none';
+  document.getElementById('m-entrega').value = today();
+  document.getElementById('m-recolhimento').value = today();
+  renderModalItens();
+  openModal('modal-aluguel');
+}
+
+function renderModalItens() {
+  document.getElementById('modal-itens-list').innerHTML = estoque.map(item => `
+    <div class="qty-row">
+      <div>
+        <div class="qty-item-name">${item.nome}</div>
+        <div class="qty-item-stock">máx ${item.qtd} ${item.unidade}</div>
+      </div>
+      <div class="qty-ctrl">
+        <button class="qty-btn qty-btn-minus" onclick="chQty(${item.id},-1)">−</button>
+        <input
+          type="number"
+          class="qty-input"
+          id="qty-${item.id}"
+          value="0"
+          min="0"
+          max="${item.qtd}"
+          oninput="chQtyInput(${item.id}, this.value)"
+        />
+        <button class="qty-btn qty-btn-plus" onclick="chQty(${item.id},+1)">+</button>
+      </div>
+    </div>`).join('');
+}
+
+function chQty(id, delta) {
+  const cur = selecionados[id]||0;
+  const item = estoque.find(e=>e.id===id);
+  selecionados[id] = Math.max(0, Math.min(cur+delta, item.qtd));
+  const inp = document.getElementById('qty-'+id);
+  if (inp) inp.value = selecionados[id];
+}
+
+function chQtyInput(id, val) {
+  const item = estoque.find(e=>e.id===id);
+  const n = Math.max(0, Math.min(parseInt(val)||0, item.qtd));
+  selecionados[id] = n;
+  const inp = document.getElementById('qty-'+id);
+  if (inp) inp.value = n;
+}
+
+async function salvarAluguel() {
+  const cliente  = document.getElementById('m-cliente').value.trim();
+  const entrega  = document.getElementById('m-entrega').value;
+  const recolh   = document.getElementById('m-recolhimento').value;
+  if (!cliente) { showToast('Informe o nome do cliente'); return; }
+  if (!entrega||!recolh) { showToast('Informe as datas'); return; }
+
+  const itens  = Object.entries(selecionados).map(([id,qty])=>({id:parseInt(id),qty})).filter(i=>i.qty>0);
+  const status = entrega <= today() ? 'ativo' : 'agendado';
+  const horaEntrega   = document.getElementById('m-hora-entrega').value || null;
+  const horaRecolhimento = document.getElementById('m-hora-recolhimento').value || null;
+  const payload = {
+    cliente,
+    fone:     document.getElementById('m-fone').value.trim()||null,
+    endereco: document.getElementById('m-endereco').value.trim()||null,
+    obs:      document.getElementById('m-obs').value.trim()||null,
+    entrega, recolhimento:recolh,
+    hora_entrega: horaEntrega,
+    hora_recolhimento: horaRecolhimento,
+    pagamento: pagamentoSelecionado === 'Outro'
+      ? (document.getElementById('m-pag-outro').value.trim() || 'Outro')
+      : pagamentoSelecionado,
+    itens, status
+  };
+
+  const btn = document.getElementById('btn-salvar-aluguel');
+  btn.disabled = true;
+  setSyncState('syncing');
+
+  const {error} = await sb.from('alugueis').insert(payload);
+  btn.disabled = false;
+
+  if (error) { setSyncState('error'); showToast('Erro ao salvar. Tente novamente.'); return; }
+  await loadAllData();
+  closeModal('modal-aluguel');
+  renderAlugueis(); renderPainel(); renderEstoque();
+  showToast('✅ Aluguel salvo!');
+}
+
+/* ════════════════════════════════════
+   MODAL ESTOQUE
+════════════════════════════════════ */
+let editandoId = null;
+
+function openModalEstoque() {
+  editandoId = null;
+  document.getElementById('e-nome').value = '';
+  document.getElementById('e-qtd').value  = '';
+  document.getElementById('estoque-form-title').textContent = 'Novo Item';
+  document.getElementById('btn-salvar-item-label').textContent = 'Adicionar Item';
+  renderEstoqueEditList();
+  openModal('modal-estoque');
+}
+
+function renderEstoqueEditList() {
+  const el = document.getElementById('estoque-edit-list');
+  if (!estoque.length) { el.innerHTML=`<div class="empty" style="padding:20px"><div class="empty-text">Nenhum item cadastrado</div></div>`; return; }
+  el.innerHTML = estoque.map(item => `
+    <div class="estoque-edit-item">
+      <div><div class="estoque-edit-name">${item.nome}</div><div class="estoque-edit-meta">${item.qtd} ${item.unidade}</div></div>
+      <div style="display:flex;gap:6px">
+        <button class="btn-icon btn-icon-edit" onclick="editarItem(${item.id})">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M9.5 2.5l2 2-8 8H1.5v-2l8-8z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="btn-icon btn-icon-del" onclick="deletarItem(${item.id})">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 3.5h10M5.5 3.5V2.5h3v1M11 3.5l-.6 8a1 1 0 0 1-1 .9H4.6a1 1 0 0 1-1-.9L3 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>`).join('');
+}
+
+function editarItem(id) {
+  const item = estoque.find(e=>e.id===id);
+  if (!item) return;
+  editandoId = id;
+  document.getElementById('e-nome').value = item.nome;
+  document.getElementById('e-qtd').value  = item.qtd;
+  document.getElementById('e-unidade').value = item.unidade;
+  document.getElementById('estoque-form-title').textContent = 'Editar Item';
+  document.getElementById('btn-salvar-item-label').textContent = 'Salvar Alterações';
+  document.getElementById('e-nome').scrollIntoView({behavior:'smooth',block:'center'});
+  document.getElementById('e-nome').focus();
+}
+
+async function deletarItem(id) {
+  if (!confirm('Remover este item do estoque?')) return;
+  setSyncState('syncing');
+  const {error} = await sb.from('estoque').delete().eq('id',id);
+  if (error) { setSyncState('error'); showToast('Erro ao remover'); return; }
+  await loadAllData();
+  renderEstoqueEditList(); renderEstoque();
+  showToast('Item removido');
+}
+
+async function salvarItem() {
+  const nome    = document.getElementById('e-nome').value.trim();
+  const qtd     = parseInt(document.getElementById('e-qtd').value);
+  const unidade = document.getElementById('e-unidade').value;
+  if (!nome||isNaN(qtd)||qtd<0) { showToast('Preencha nome e quantidade'); return; }
+
+  const btn = document.getElementById('btn-salvar-item');
+  btn.disabled = true;
+  setSyncState('syncing');
+
+  let error;
+  if (editandoId) {
+    ({error} = await sb.from('estoque').update({nome,qtd,unidade}).eq('id',editandoId));
+  } else {
+    ({error} = await sb.from('estoque').insert({nome,qtd,unidade}));
+  }
+
+  btn.disabled = false;
+  if (error) { setSyncState('error'); showToast('Erro ao salvar item'); return; }
+
+  await loadAllData();
+  editandoId = null;
+  document.getElementById('e-nome').value = '';
+  document.getElementById('e-qtd').value  = '';
+  document.getElementById('estoque-form-title').textContent = 'Novo Item';
+  document.getElementById('btn-salvar-item-label').textContent = 'Adicionar Item';
+  renderEstoqueEditList(); renderEstoque();
+  showToast('✅ Item salvo!');
+}
+
+/* ════════════════════════════════════
+   MODAL UTILS
+════════════════════════════════════ */
+function openModal(id)  { document.getElementById(id).classList.remove('hidden'); document.body.style.overflow='hidden'; }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); document.body.style.overflow=''; }
+function overlayClose(e,id) { if(e.target.id===id) closeModal(id); }
+
+/* ════════════════════════════════════
+   TOAST
+════════════════════════════════════ */
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 2600);
+}
+
+let voucherAluguelId = null;
+
+function compartilhar(id) {
+  const a = alugueis.find(x=>x.id===id);
+  if (!a) return;
+  voucherAluguelId = id;
+  document.getElementById('v-cliente').textContent = a.cliente;
+  const foneEl = document.getElementById('v-fone');
+  foneEl.textContent = a.fone ? '📱 '+a.fone : '';
+  foneEl.style.display = a.fone ? 'block' : 'none';
+  const endEl = document.getElementById('v-endereco');
+  endEl.textContent = a.endereco ? '📍 '+a.endereco : '';
+  endEl.style.display = a.endereco ? 'block' : 'none';
+  document.getElementById('v-entrega').textContent = fmt(a.entrega);
+  document.getElementById('v-hora-entrega').textContent = a.hora_entrega ? 'às '+a.hora_entrega : '';
+  document.getElementById('v-recolhimento').textContent = fmt(a.recolhimento);
+  document.getElementById('v-hora-recolhimento').textContent = a.hora_recolhimento ? 'às '+a.hora_recolhimento : '';
+  const itensEl = document.getElementById('v-itens');
+  itensEl.innerHTML = (a.itens||[]).filter(i=>i.qty>0).map(i=>{
+    const est=estoque.find(e=>e.id===i.id);
+    return est?`<div style="display:flex;align-items:center;justify-content:space-between;background:#1C1C1E;border-radius:8px;padding:9px 12px"><span style="font-size:13px;font-weight:600;color:#E5E5EA">${est.nome}</span><span style="font-size:13px;font-weight:800;color:#FF6B00">${i.qty} ${est.unidade}</span></div>`:'';
+  }).join('');
+  if (a.obs) {
+    document.getElementById('v-obs').textContent = a.obs;
+    document.getElementById('v-obs-wrap').style.display = 'block';
+  } else {
+    document.getElementById('v-obs-wrap').style.display = 'none';
+  }
+  openModal('modal-voucher');
+}
+
+async function gerarImagem() {
+  const btn = document.getElementById('btn-gerar-img');
+  btn.disabled=true; btn.textContent='Gerando...';
+  try {
+    const al=alugueis.find(x=>x.id===voucherAluguelId);
+    if(!al) return;
+    const DPR=2,W=380;
+    const itensArr=(al.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?{nome:est.nome,qty:i.qty,unidade:est.unidade}:null;}).filter(Boolean);
+    const itemH=44,obsH=al.obs?60:0,H=320+(itensArr.length*itemH)+obsH;
+    const cv=document.createElement('canvas');
+    cv.width=W*DPR;cv.height=H*DPR;
+    const ctx=cv.getContext('2d');
+    ctx.scale(DPR,DPR);
+    const rr=(x,y,w,h,rd)=>{ctx.beginPath();ctx.moveTo(x+rd,y);ctx.lineTo(x+w-rd,y);ctx.quadraticCurveTo(x+w,y,x+w,y+rd);ctx.lineTo(x+w,y+h-rd);ctx.quadraticCurveTo(x+w,y+h,x+w-rd,y+h);ctx.lineTo(x+rd,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-rd);ctx.lineTo(x,y+rd);ctx.quadraticCurveTo(x,y,x+rd,y);ctx.closePath();};
+    // bg
+    rr(0,0,W,H,20);ctx.fillStyle='#0F0F0F';ctx.fill();
+    // header
+    rr(0,0,W,80,20);ctx.fillStyle='#FF6B00';ctx.fill();ctx.fillRect(0,60,W,20);
+    // logo box
+    rr(18,18,44,44,12);ctx.fillStyle='rgba(0,0,0,0.25)';ctx.fill();
+    ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
+    ctx.beginPath();for(let i=0;i<6;i++){const ang=Math.PI/3*i-Math.PI/6;i===0?ctx.moveTo(40+10*Math.cos(ang),40+10*Math.sin(ang)):ctx.lineTo(40+10*Math.cos(ang),40+10*Math.sin(ang));}
+    ctx.closePath();ctx.stroke();
+    ctx.beginPath();ctx.arc(40,40,3,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+    // brand
+    ctx.fillStyle='#fff';ctx.font='900 20px Arial';ctx.fillText('LocaFácil',72,38);
+    ctx.font='500 10px Arial';ctx.fillStyle='rgba(255,255,255,0.85)';ctx.fillText('Lince Serviços e Eventos LTDA',72,54);
+    // badge
+    rr(W-106,22,94,26,8);ctx.fillStyle='rgba(0,0,0,0.22)';ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.8)';ctx.font='700 9px Arial';ctx.textAlign='center';ctx.fillText('AGENDAMENTO',W-59,39);ctx.textAlign='left';
+    // dashed divider
+    ctx.setLineDash([6,4]);ctx.strokeStyle='#2C2C2E';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(22,84);ctx.lineTo(W-22,84);ctx.stroke();ctx.setLineDash([]);
+    // client
+    let y=100;
+    ctx.fillStyle='#636366';ctx.font='700 10px Arial';ctx.fillText('CLIENTE',22,y);y+=18;
+    ctx.fillStyle='#fff';ctx.font='900 18px Arial';ctx.fillText(al.cliente,22,y);y+=20;
+    if(al.fone){ctx.fillStyle='#AEAEB2';ctx.font='500 12px Arial';ctx.fillText('📱 '+al.fone,22,y);y+=16;}
+    if(al.endereco){ctx.fillStyle='#AEAEB2';ctx.font='500 12px Arial';ctx.fillText('📍 '+al.endereco,22,y);y+=16;}
+    y+=10;
+    // date cards
+    const cW=(W-54)/2;
+    rr(22,y,cW,62,12);ctx.fillStyle='#1C1C1E';ctx.fill();
+    ctx.fillStyle='#FF6B00';ctx.font='700 9px Arial';ctx.fillText('ENTREGA',34,y+15);
+    ctx.fillStyle='#fff';ctx.font='800 15px Arial';ctx.fillText(fmt(al.entrega),34,y+33);
+    if(al.hora_entrega){ctx.fillStyle='#AEAEB2';ctx.font='500 11px Arial';ctx.fillText('às '+al.hora_entrega,34,y+49);}
+    const c2=22+cW+10;
+    rr(c2,y,cW,62,12);ctx.fillStyle='#1C1C1E';ctx.fill();
+    ctx.fillStyle='#34C759';ctx.font='700 9px Arial';ctx.fillText('RECOLHIMENTO',c2+12,y+15);
+    ctx.fillStyle='#fff';ctx.font='800 15px Arial';ctx.fillText(fmt(al.recolhimento),c2+12,y+33);
+    if(al.hora_recolhimento){ctx.fillStyle='#AEAEB2';ctx.font='500 11px Arial';ctx.fillText('às '+al.hora_recolhimento,c2+12,y+49);}
+    y+=76;
+    // items
+    ctx.fillStyle='#636366';ctx.font='700 10px Arial';ctx.fillText('ITENS',22,y);y+=14;
+    itensArr.forEach(item=>{
+      rr(22,y,W-44,34,9);ctx.fillStyle='#1C1C1E';ctx.fill();
+      ctx.fillStyle='#E5E5EA';ctx.font='600 13px Arial';ctx.fillText(item.nome,34,y+22);
+      const qt=`${item.qty} ${item.unidade}`;
+      ctx.fillStyle='#FF6B00';ctx.font='800 13px Arial';
+      ctx.fillText(qt,W-22-ctx.measureText(qt).width-12,y+22);
+      y+=itemH;
+    });
+    if(al.obs){y+=6;rr(22,y,W-44,46,10);ctx.fillStyle='#1C1C1E';ctx.fill();ctx.fillStyle='#636366';ctx.font='700 10px Arial';ctx.fillText('OBSERVAÇÃO',34,y+16);ctx.fillStyle='#AEAEB2';ctx.font='500 12px Arial';ctx.fillText(al.obs.substring(0,50)+(al.obs.length>50?'…':''),34,y+34);}
+    // footer
+    ctx.fillStyle='#1C1C1E';ctx.fillRect(0,H-36,W,36);
+    ctx.fillStyle='#636366';ctx.font='500 11px Arial';ctx.fillText('Lince Serviços e Eventos LTDA',22,H-14);
+    ctx.fillStyle='#FF6B00';ctx.font='700 11px Arial';const fw=ctx.measureText('LocaFácil').width;ctx.fillText('LocaFácil',W-22-fw,H-14);
+    rr(0,0,W,H,20);ctx.strokeStyle='#2C2C2E';ctx.lineWidth=1;ctx.stroke();
+    cv.toBlob(async(blob)=>{
+      const file=new File([blob],'locafacil.png',{type:'image/png'});
+      if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+        await navigator.share({files:[file],title:'Agendamento LocaFácil'});
+      } else {
+        const url=cv.toDataURL('image/png');const link=document.createElement('a');link.href=url;link.download='locafacil.png';link.click();
+        showToast('✅ Imagem salva!');
+      }
+    },'image/png');
+  } catch(e){console.error(e);showToast('Erro ao gerar imagem');}
+  btn.disabled=false;
+  btn.innerHTML='<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="14" height="14" rx="3" stroke="white" stroke-width="1.5" fill="none"/><path d="M4 9l2.5 2.5L12 5" stroke="white" stroke-width="1.6" stroke-linecap="round"/></svg> Salvar imagem';
+}
+
+function compartilharTexto() {
+  const a=alugueis.find(x=>x.id===voucherAluguelId);
+  if(!a) return;
+  const itensTexto=(a.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?`• ${est.nome}: ${i.qty} ${est.unidade}`:''}).filter(Boolean).join('\n');
+  const texto=`📋 *Agendamento — LocaFácil*\n*Lince Serviços e Eventos LTDA*\n\n👤 ${a.cliente}\n${a.fone?'📱 '+a.fone+'\n':''}${a.endereco?'📍 '+a.endereco+'\n':''}\n📤 Entrega: ${fmt(a.entrega)}${a.hora_entrega?' às '+a.hora_entrega:''}\n📥 Recolhimento: ${fmt(a.recolhimento)}${a.hora_recolhimento?' às '+a.hora_recolhimento:''}\n\n📦 Itens:\n${itensTexto||'(sem itens)'}${a.obs?'\n\n💬 '+a.obs:''}\n\n_LocaFácil — Lince Serviços e Eventos LTDA_`;
+  if(navigator.share){navigator.share({title:'Agendamento LocaFácil',text:texto}).catch(()=>{});}
+  else{navigator.clipboard.writeText(texto).then(()=>showToast('✅ Copiado!')).catch(()=>showToast('Erro ao copiar'));}
+}
+</script>
+
+<!-- MODAL VOUCHER -->
+<div class="modal-overlay hidden" id="modal-voucher" onclick="overlayClose(event,'modal-voucher')">
+  <div class="modal-sheet" style="background:#000">
+    <div class="modal-handle" style="background:#2C2C2E"></div>
+    <div class="modal-header">
+      <div class="modal-title" style="color:#fff">Compartilhar</div>
+      <button class="modal-close" style="background:#2C2C2E;color:#AEAEB2" onclick="closeModal('modal-voucher')">✕</button>
+    </div>
+    <div style="padding:16px 16px 8px">
+      <!-- VOUCHER CARD -->
+      <div id="voucher-card" style="
+        background:#0F0F0F;
+        border-radius:16px;
+        overflow:hidden;
+        font-family:'Inter',-apple-system,sans-serif;
+        border:1px solid #2C2C2E;
+      ">
+        <!-- header -->
+        <div style="background:#FF6B00;padding:20px 22px 16px;display:flex;align-items:center;gap:14px">
+          <div style="width:44px;height:44px;background:rgba(0,0,0,0.2);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg width="24" height="24" viewBox="0 0 20 20" fill="none">
+              <path d="M10 2L18 6.5V13.5L10 18L2 13.5V6.5L10 2Z" stroke="white" stroke-width="1.5" fill="none"/>
+              <circle cx="10" cy="10" r="2.5" fill="white"/>
+            </svg>
+          </div>
+          <div>
+            <div style="font-size:18px;font-weight:900;letter-spacing:-0.5px;color:#fff">LocaFácil</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:1px;font-weight:500">Lince Serviços e Eventos LTDA</div>
+          </div>
+          <div style="margin-left:auto;background:rgba(0,0,0,0.2);border-radius:8px;padding:5px 10px">
+            <div style="font-size:10px;color:rgba(255,255,255,0.7);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Agendamento</div>
+          </div>
+        </div>
+
+        <!-- divider dashed -->
+        <div style="border-top:2px dashed #2C2C2E;margin:0 22px"></div>
+
+        <!-- client info -->
+        <div style="padding:18px 22px 0">
+          <div style="font-size:11px;font-weight:700;color:#636366;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">Cliente</div>
+          <div style="font-size:20px;font-weight:900;color:#fff;letter-spacing:-0.5px" id="v-cliente">—</div>
+          <div style="font-size:13px;color:#AEAEB2;margin-top:3px;font-weight:500" id="v-fone"></div>
+          <div style="font-size:13px;color:#AEAEB2;margin-top:2px;font-weight:500" id="v-endereco"></div>
+        </div>
+
+        <!-- dates row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 22px">
+          <div style="background:#1C1C1E;border-radius:12px;padding:12px 14px">
+            <div style="font-size:10px;font-weight:700;color:#FF6B00;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:5px">📤 Entrega</div>
+            <div style="font-size:15px;font-weight:800;color:#fff" id="v-entrega">—</div>
+            <div style="font-size:12px;color:#AEAEB2;margin-top:2px" id="v-hora-entrega"></div>
+          </div>
+          <div style="background:#1C1C1E;border-radius:12px;padding:12px 14px">
+            <div style="font-size:10px;font-weight:700;color:#34C759;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:5px">📥 Recolhimento</div>
+            <div style="font-size:15px;font-weight:800;color:#fff" id="v-recolhimento">—</div>
+            <div style="font-size:12px;color:#AEAEB2;margin-top:2px" id="v-hora-recolhimento"></div>
+          </div>
+        </div>
+
+        <!-- items -->
+        <div style="padding:0 22px 14px">
+          <div style="font-size:11px;font-weight:700;color:#636366;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px">📦 Itens</div>
+          <div id="v-itens" style="display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+
+        <!-- obs -->
+        <div id="v-obs-wrap" style="padding:0 22px 14px;display:none">
+          <div style="background:#1C1C1E;border-radius:10px;padding:10px 14px">
+            <div style="font-size:11px;font-weight:700;color:#636366;margin-bottom:4px">💬 Observação</div>
+            <div style="font-size:13px;color:#AEAEB2;font-weight:500" id="v-obs"></div>
+          </div>
+        </div>
+
+        <!-- footer -->
+        <div style="background:#1C1C1E;padding:12px 22px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid #2C2C2E">
+          <div style="font-size:11px;color:#636366;font-weight:500">Lince Serviços e Eventos LTDA</div>
+          <div style="font-size:11px;color:#FF6B00;font-weight:700">LocaFácil</div>
+        </div>
+      </div>
+
+      <!-- actions -->
+      <div style="display:flex;gap:10px;margin-top:14px;padding-bottom:8px">
+        <button class="btn-primary" onclick="gerarImagem()" id="btn-gerar-img">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 11l3-3 2 2 4-5 3 4" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="1" width="14" height="14" rx="3" stroke="white" stroke-width="1.5" fill="none"/></svg>
+          Salvar imagem
+        </button>
+        <button class="btn-secondary" onclick="compartilharTexto()" style="flex:0.6">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="12" cy="4" r="2" stroke="currentColor" stroke-width="1.5"/><circle cx="4" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="2" stroke="currentColor" stroke-width="1.5"/><path d="M6 7l4-2M6 9l4 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Texto
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SQL para rodar no Supabase SQL Editor (só uma vez):
+CREATE TABLE IF NOT EXISTS estoque (
+  id serial primary key,
+  nome text not null,
+  qtd integer not null default 0,
+  unidade text not null default 'unidade',
+  criado_em timestamptz default now()
+);
+CREATE TABLE IF NOT EXISTS alugueis (
+  id serial primary key,
+  cliente text not null,
+  fone text,
+  endereco text,
+  obs text,
+  entrega date not null,
+  recolhimento date not null,
+  status text not null default 'agendado',
+  voltou date,
+  itens jsonb default '[]',
+  criado_em timestamptz default now()
+);
+ALTER TABLE estoque  DISABLE ROW LEVEL SECURITY;
+ALTER TABLE alugueis DISABLE ROW LEVEL SECURITY;
+INSERT INTO estoque (nome, qtd, unidade) VALUES
+  ('Jogo de Mesa + Cadeiras (4)', 20, 'jogo'),
+  ('Cadeira plástica avulsa',     60, 'unidade'),
+  ('Mesa redonda',                15, 'unidade'),
+  ('Toalha de mesa',              40, 'unidade'),
+  ('Círculo de MDF',              10, 'unidade'),
+  ('Tenda',                        4, 'unidade'),
+  ('Palco (módulo)',               8, 'unidade'),
+  ('Sistema de Som',               2, 'conjunto');
+-->
+</body>
+</html>
