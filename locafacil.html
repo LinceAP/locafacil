@@ -553,7 +553,12 @@ async function bootApp() {
     }, { once: false });
   } catch(e) {
     document.getElementById('loading-overlay').style.display = 'none';
-    showToast('Erro ao conectar. Verifique a internet.');
+    // show app even on error so it's not blank
+    document.getElementById('app').style.display = 'flex';
+    setDate();
+    renderAll();
+    setSyncState('error');
+    showToast('⚠️ Sem conexão — toque em 🔄 para tentar');
   }
 }
 
