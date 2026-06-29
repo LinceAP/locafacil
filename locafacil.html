@@ -727,24 +727,37 @@ function renderRelatorio() {
   const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   document.getElementById('relatorio-mes-label').textContent = `${meses[mes]} ${ano}`;
 
-  // filtrar alugueis do mês pela data de entrega
-  const doMes = alugueis.filter(a => {
-    if (!a.entrega) return false;
-    const d = new Date(a.entrega + 'T00:00:00');
+  // só conta finalizados (venda fechada) pelo mês que voltaram
+  const finalizados = alugueis.filter(a => {
+    if (a.status !== 'finalizado' || !a.voltou) return false;
+    const d = new Date(a.voltou.slice(0,10) + 'T00:00:00');
     return d.getFullYear() === ano && d.getMonth() === mes;
   });
 
-  // faturamento
-  const faturamento = doMes.reduce((acc,a) => acc + (a.valor||0), 0);
-  const pagos = doMes.filter(a => a.pagamento === 'Sim');
-  const receber = doMes.filter(a => a.pagamento !== 'Sim').reduce((acc,a) => acc + (a.valor||0), 0);
+  // todos do mês (entrega no mês) pra itens mais alugados
+  const doMes = alugueis.filter(a => {
+    if (!a.entrega) return false;
+    const d = new Date(a.entrega.slice(0,10) + 'T00:00:00');
+    return d.getFullYear() === ano && d.getMonth() === mes;
+  });
 
-  document.getElementById('rel-faturamento').textContent = `R$ ${faturamento.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-  document.getElementById('rel-total').textContent = doMes.length;
-  document.getElementById('rel-pagos').textContent = pagos.length;
-  document.getElementById('rel-receber').textContent = `R$ ${receber.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const faturamento  = finalizados.reduce((acc,a) => acc + (a.valor||0), 0);
+  const pagos        = finalizados.filter(a => a.pagamento === 'Sim');
+  const valorPagos   = pagos.reduce((acc,a) => acc + (a.valor||0), 0);
+  const nPagos       = pagos.length;
+  const naoPagearam  = finalizados.filter(a => a.pagamento !== 'Sim');
+  const receber      = naoPagearam.reduce((acc,a) => acc + (a.valor||0), 0);
 
-  // itens mais alugados
+  const fmt2 = v => `R$ ${v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+
+  document.getElementById('rel-faturamento').textContent   = fmt2(faturamento);
+  document.getElementById('rel-total-label').textContent   = `${finalizados.length} aluguel${finalizados.length!==1?'s':''} finalizado${finalizados.length!==1?'s':''}`;
+  document.getElementById('rel-valor-pagos').textContent   = fmt2(valorPagos);
+  document.getElementById('rel-qtd-pagos').textContent     = `${nPagos} aluguel${nPagos!==1?'s':''}`;
+  document.getElementById('rel-receber').textContent       = fmt2(receber);
+  document.getElementById('rel-qtd-receber').textContent   = `${naoPagearam.length} aluguel${naoPagearam.length!==1?'s':''}`;
+
+  // itens mais alugados (todos do mês, não só finalizados)
   const itemCount = {};
   doMes.forEach(a => {
     (a.itens||[]).filter(i=>i.qty>0).forEach(i => {
@@ -778,20 +791,20 @@ function renderRelatorio() {
       </div>`).join('');
   }
 
-  // lista do mês
+  // lista vendas fechadas
   const listaEl = document.getElementById('rel-lista');
-  if (!doMes.length) {
-    listaEl.innerHTML = `<div class="empty" style="padding:16px"><div class="empty-text">Nenhum aluguel neste mês</div></div>`;
+  if (!finalizados.length) {
+    listaEl.innerHTML = `<div class="empty" style="padding:16px"><div class="empty-text">Nenhuma venda fechada neste mês</div></div>`;
   } else {
-    listaEl.innerHTML = doMes.sort((a,b)=>a.entrega?.localeCompare(b.entrega)).map(a => `
+    listaEl.innerHTML = finalizados.sort((a,b)=>a.voltou?.localeCompare(b.voltou)).map(a => `
       <div class="list-item">
         <div class="list-item-body">
           <div class="list-item-name">${a.cliente}</div>
-          <div class="list-item-meta">${fmt(a.entrega)} → ${fmt(a.recolhimento)}</div>
+          <div class="list-item-meta">Fechado em ${fmt(a.voltou)}</div>
           ${a.pagamento?`<div style="margin-top:3px"><span class="badge ${a.pagamento==='Sim'?'badge-green':a.pagamento==='Não'?'badge-red':'badge-yellow'}">${a.pagamento==='Sim'?'Pago':a.pagamento==='Não'?'A pagar':a.pagamento}</span></div>`:''}
         </div>
         <div class="list-item-right">
-          <div class="list-item-val" style="font-size:16px;color:${a.valor?'var(--text)':'var(--text3)'}">${a.valor!=null?'R$ '+Number(a.valor).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—'}</div>
+          <div style="font-size:16px;font-weight:900;color:${a.valor?'var(--text)':'var(--text3)'}">${a.valor!=null?'R$ '+Number(a.valor).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—'}</div>
         </div>
       </div>`).join('');
   }
@@ -998,8 +1011,9 @@ function renderAlugueis() {
 
       <!-- Ações -->
       <div class="aluguel-actions">
-        ${btnSaiu}${btnDesfazer}${btnVoltou}${btnCompartilhar}
+        ${btnSaiu}${btnVoltou}${btnCompartilhar}
         <button class="action-btn" onclick="editarAluguel(${a.id})" style="color:var(--orange)">✏️ Editar</button>
+        ${btnDesfazer}
         <button class="action-btn danger" onclick="excluirAluguel(${a.id})">🗑</button>
       </div>
     </div>`;
