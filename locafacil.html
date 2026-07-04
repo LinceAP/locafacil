@@ -4,7 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Lince Serviços e Eventos</title>
-<meta name="app-version" content="2.1">
+<meta name="app-version" content="2.5">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -370,10 +373,37 @@ textarea.form-input{resize:vertical;min-height:72px;}
     <!-- ALUGUÉIS -->
     <div id="tab-alugueis" class="hidden">
       <div class="sec-header"><div class="sec-title">Aluguéis</div><div class="sec-sub">Ativos e agendados</div></div>
-      <div style="position:relative;margin-bottom:14px">
+
+      <!-- Busca -->
+      <div style="position:relative;margin-bottom:12px">
         <svg style="position:absolute;left:14px;top:50%;transform:translateY(-50%);pointer-events:none" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="#636366" stroke-width="1.5"/><path d="M13 13l-2.5-2.5" stroke="#636366" stroke-width="1.5" stroke-linecap="round"/></svg>
         <input type="text" class="form-input" id="busca-aluguel" placeholder="Buscar cliente..." oninput="renderAlugueis()" style="padding-left:38px;margin-bottom:0"/>
       </div>
+
+      <!-- Calendário -->
+      <div class="card" style="margin-bottom:12px;overflow:visible">
+        <div style="padding:14px 16px 10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <button onclick="mudarCalMes(-1)" style="background:var(--input-bg);border:none;border-radius:8px;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text);font-weight:700">‹</button>
+            <div id="cal-mes-label" style="font-size:14px;font-weight:800;color:var(--text)"></div>
+            <button onclick="mudarCalMes(+1)" style="background:var(--input-bg);border:none;border-radius:8px;width:30px;height:30px;font-size:16px;cursor:pointer;color:var(--text);font-weight:700">›</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;margin-bottom:6px">
+            <div style="font-size:10px;font-weight:700;color:var(--text2);padding:4px 0">D</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text2);padding:4px 0">S</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text2);padding:4px 0">T</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text2);padding:4px 0">Q</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text2);padding:4px 0">Q</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text2);padding:4px 0">S</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text2);padding:4px 0">S</div>
+          </div>
+          <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center"></div>
+          <div style="margin-top:10px;display:flex;justify-content:center">
+            <button id="cal-btn-todos" onclick="calSelecionado=null;renderAlugueis();renderCal()" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:12px;font-weight:700;font-family:Inter,sans-serif;cursor:pointer">Ver Todos</button>
+          </div>
+        </div>
+      </div>
+
       <div id="alugueis-list"></div>
     </div>
 
@@ -586,7 +616,7 @@ async function silentRefresh() {
     for (const t of tabs) {
       const el = document.getElementById('tab-' + t);
       if (el && !el.classList.contains('hidden')) {
-        const renders = { painel:renderPainel, estoque:renderEstoque, alugueis:renderAlugueis, disponib:renderProximos, historico:renderHistorico };
+        const renders = { painel:renderPainel, estoque:renderEstoque, alugueis:()=>{renderCal();renderAlugueis();}, disponib:renderProximos, historico:renderHistorico };
         if (renders[t]) renders[t]();
         break;
       }
@@ -699,13 +729,19 @@ function showTab(tab, btn) {
 }
 
 function renderAll() {
-  renderPainel(); renderEstoque(); renderAlugueis(); renderHistorico(); renderProximos();
+  renderPainel(); renderEstoque(); renderCal(); renderAlugueis(); renderHistorico(); renderProximos();
 }
 
 /* ════════════════════════════════════
    UTILS
 ════════════════════════════════════ */
-function today() { return new Date().toISOString().slice(0,10); }
+function today() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 
 function syncMinRecolh(entradaId, recolhId) {
   const entrega = document.getElementById(entradaId).value;
@@ -920,18 +956,15 @@ function renderEstoque() {
   const el   = document.getElementById('estoque-list');
   if (!estoque.length) { el.innerHTML=`<div class="empty"><div class="empty-icon">📦</div><div class="empty-title">Nenhum item</div><div class="empty-text">Adicione itens ao estoque</div></div>`; return; }
   el.innerHTML = estoque.map(item => {
-    const campo     = calcAtivo(item.id, hoje, hoje);
-    const reservado = calcReservado(item.id, hoje, hoje);
-    const ocupado   = campo + reservado;
-    const disp      = item.qtd - ocupado;
+    const campo     = calcAtivo(item.id, hoje, hoje);   // saiu fisicamente hoje
+    const disp      = item.qtd - campo;                  // o que está no depósito agora
     const pct       = item.qtd>0 ? disp/item.qtd : 1;
-    const color     = pct<=0.2?'var(--red)':pct<=0.5?'var(--yellow)':'var(--green)';
-    const barC      = pct<=0.2?'#FF3B30':pct<=0.5?'#FF9500':'#34C759';
-
-    // reservados futuros (próximos 30 dias, excluindo hoje)
+    // agendados futuros (próximos 30 dias) — só informação, não subtrai
     const futuro = new Date(); futuro.setDate(futuro.getDate()+30);
     const futuroStr = futuro.toISOString().slice(0,10);
-    const agendadoFuturo = calcReservado(item.id, hoje, futuroStr) - reservado;
+    const agendadoFuturo = calcReservado(item.id, hoje, futuroStr);
+    const color     = pct<=0.2?'var(--red)':pct<=0.5?'var(--yellow)':'var(--green)';
+    const barC      = pct<=0.2?'#FF3B30':pct<=0.5?'#FF9500':'#34C759';
 
     return `<div class="list-item" style="align-items:flex-start;padding:14px 18px">
       <div class="list-item-icon" style="background:var(--input-bg);margin-top:2px;flex-shrink:0">
@@ -939,23 +972,23 @@ function renderEstoque() {
       </div>
       <div class="list-item-body">
         <div class="list-item-name">${item.nome}</div>
-        <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
-          <div style="background:var(--input-bg);border-radius:8px;padding:6px 10px;text-align:center;min-width:60px">
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <div style="background:var(--input-bg);border-radius:8px;padding:6px 10px;text-align:center;min-width:56px">
             <div style="font-size:18px;font-weight:900;color:var(--text)">${item.qtd}</div>
             <div style="font-size:10px;font-weight:600;color:var(--text2);margin-top:1px">TOTAL</div>
           </div>
-          <div style="background:var(--green-bg);border-radius:8px;padding:6px 10px;text-align:center;min-width:60px">
+          <div style="background:var(--green-bg);border-radius:8px;padding:6px 10px;text-align:center;min-width:56px">
             <div style="font-size:18px;font-weight:900;color:var(--green)">${campo}</div>
             <div style="font-size:10px;font-weight:600;color:var(--green);margin-top:1px;opacity:.8">EM CAMPO</div>
           </div>
-          <div style="background:var(--yellow-bg);border-radius:8px;padding:6px 10px;text-align:center;min-width:60px">
-            <div style="font-size:18px;font-weight:900;color:var(--yellow)">${reservado + agendadoFuturo}</div>
+          <div style="background:var(--input-bg);border-radius:8px;padding:6px 10px;text-align:center;min-width:56px">
+            <div style="font-size:18px;font-weight:900;color:var(--text)">${disp}</div>
+            <div style="font-size:10px;font-weight:600;color:var(--text2);margin-top:1px">DEPÓSITO</div>
+          </div>
+          ${agendadoFuturo>0?`<div style="background:var(--yellow-bg);border-radius:8px;padding:6px 10px;text-align:center;min-width:56px">
+            <div style="font-size:18px;font-weight:900;color:var(--yellow)">${agendadoFuturo}</div>
             <div style="font-size:10px;font-weight:600;color:var(--yellow);margin-top:1px;opacity:.8">AGENDADO</div>
-          </div>
-          <div style="background:${pct<=0.2?'var(--red-bg)':pct<=0.5?'var(--yellow-bg)':'var(--green-bg)'};border-radius:8px;padding:6px 10px;text-align:center;min-width:60px">
-            <div style="font-size:18px;font-weight:900;color:${color}">${disp}</div>
-            <div style="font-size:10px;font-weight:600;color:${color};margin-top:1px;opacity:.8">LIVRE</div>
-          </div>
+          </div>`:''}
         </div>
         <div class="avail-bar-wrap" style="margin-top:10px"><div class="avail-bar" style="width:${Math.max(4,pct*100)}%;background:${barC}"></div></div>
       </div>
@@ -966,6 +999,78 @@ function renderEstoque() {
 /* ════════════════════════════════════
    ALUGUÉIS
 ════════════════════════════════════ */
+// ── CALENDÁRIO ──
+let calMesOffset = 0;
+let calSelecionado = null;
+
+function mudarCalMes(delta) {
+  calMesOffset += delta;
+  calSelecionado = null;
+  renderCal();
+  renderAlugueis();
+}
+
+function renderCal() {
+  const now = new Date();
+  const alvo = new Date(now.getFullYear(), now.getMonth() + calMesOffset, 1);
+  const ano  = alvo.getFullYear();
+  const mes  = alvo.getMonth();
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const label = document.getElementById('cal-mes-label');
+  if (label) label.textContent = `${meses[mes]} ${ano}`;
+
+  const grid = document.getElementById('cal-grid');
+  if (!grid) return;
+
+  // dias com algum aluguel ativo/agendado no período
+  const diasComAluguel = new Set();
+  alugueis.filter(a=>a.status!=='finalizado').forEach(a=>{
+    if (!a.entrega||!a.recolhimento) return;
+    const ini = new Date(a.entrega.slice(0,10)+'T00:00:00');
+    const fim = new Date(a.recolhimento.slice(0,10)+'T00:00:00');
+    const cur = new Date(ini);
+    while (cur <= fim) {
+      if (cur.getFullYear()===ano && cur.getMonth()===mes) {
+        diasComAluguel.add(cur.getDate());
+      }
+      cur.setDate(cur.getDate()+1);
+    }
+  });
+
+  const primeiroDia = new Date(ano, mes, 1).getDay();
+  const diasNoMes   = new Date(ano, mes+1, 0).getDate();
+  const hojeStr     = today();
+  const hojeD       = new Date(hojeStr+'T00:00:00');
+
+  let html = '';
+  // empty cells before first day
+  for (let i=0; i<primeiroDia; i++) html += '<div></div>';
+
+  for (let d=1; d<=diasNoMes; d++) {
+    const dataStr = `${ano}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isHoje  = dataStr === hojeStr;
+    const temAlug = diasComAluguel.has(d);
+    const isSel   = calSelecionado === dataStr;
+
+    const bg = isSel ? 'var(--orange)' : isHoje ? 'var(--input-bg)' : 'transparent';
+    const color = isSel ? '#fff' : isHoje ? 'var(--orange)' : 'var(--text)';
+    const fw = isHoje || isSel ? '800' : '500';
+
+    html += `<div onclick="calClicar('${dataStr}')" style="cursor:pointer;padding:6px 2px;border-radius:8px;background:${bg};position:relative">
+      <div style="font-size:13px;font-weight:${fw};color:${color}">${d}</div>
+      ${temAlug?`<div style="width:5px;height:5px;border-radius:50%;background:${isSel?'#fff':'var(--orange)'};margin:1px auto 0"></div>`:'<div style="height:6px"></div>'}
+    </div>`;
+  }
+
+  grid.innerHTML = html;
+}
+
+function calClicar(dataStr) {
+  calSelecionado = calSelecionado === dataStr ? null : dataStr;
+  renderCal();
+  renderAlugueis();
+}
+
 function renderAlugueis() {
   const el   = document.getElementById('alugueis-list');
   const hoje = today();
@@ -973,11 +1078,19 @@ function renderAlugueis() {
   const list = alugueis
     .filter(a=>a.status!=='finalizado')
     .filter(a=> !busca || a.cliente?.toLowerCase().includes(busca))
+    .filter(a=> {
+      if (!calSelecionado) return true;
+      // mostra se o dia selecionado está dentro do período do aluguel
+      return a.entrega?.slice(0,10) <= calSelecionado && a.recolhimento?.slice(0,10) >= calSelecionado;
+    })
     .sort((a,b)=>a.entrega?.localeCompare(b.entrega));
+
   if (!list.length) {
-    el.innerHTML=busca
-      ? `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-title">Nenhum resultado</div><div class="empty-text">Nenhum cliente com "${busca}"</div></div>`
-      : `<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Sem aluguéis ativos</div><div class="empty-text">Toque em "Novo Aluguel" para começar</div></div>`;
+    el.innerHTML=calSelecionado
+      ? `<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">Nenhum aluguel</div><div class="empty-text">Sem aluguéis em ${fmt(calSelecionado)}</div></div>`
+      : busca
+        ? `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-title">Nenhum resultado</div><div class="empty-text">Nenhum cliente com "${busca}"</div></div>`
+        : `<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Sem aluguéis ativos</div><div class="empty-text">Toque em "Novo Aluguel" para começar</div></div>`;
     return;
   }
 
