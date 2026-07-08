@@ -845,17 +845,28 @@ function renderRelatorio() {
   if (!finalizados.length) {
     listaEl.innerHTML = `<div class="empty" style="padding:16px"><div class="empty-text">Nenhuma venda fechada neste mês</div></div>`;
   } else {
-    listaEl.innerHTML = finalizados.sort((a,b)=>a.voltou?.localeCompare(b.voltou)).map(a => `
-      <div class="list-item">
+    listaEl.innerHTML = finalizados.sort((a,b)=>a.voltou?.localeCompare(b.voltou)).map(a => {
+      const pago = a.pagamento === 'Sim';
+      const badge = pago
+        ? `<span class="badge badge-green">✅ Pago</span>`
+        : `<span class="badge badge-red">⏳ A Receber</span>`;
+      const btnPagar = !pago
+        ? `<button onclick="marcarPago(${a.id})" style="background:var(--green);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:800;font-family:Inter,sans-serif;cursor:pointer;margin-top:8px">💰 Marcar como Pago</button>`
+        : '';
+      return `
+      <div class="list-item" style="align-items:flex-start">
         <div class="list-item-body">
           <div class="list-item-name">${a.cliente}</div>
           <div class="list-item-meta">Fechado em ${fmt(a.voltou)}</div>
-          ${a.pagamento?`<div style="margin-top:3px"><span class="badge ${a.pagamento==='Sim'?'badge-green':a.pagamento==='Não'?'badge-red':'badge-yellow'}">${a.pagamento==='Sim'?'Pago':a.pagamento==='Não'?'A pagar':a.pagamento}</span></div>`:''}
+          <div style="margin-top:5px">${badge}</div>
+          ${btnPagar}
         </div>
         <div class="list-item-right">
-          <div style="font-size:16px;font-weight:900;color:${a.valor?'var(--text)':'var(--text3)'}">${a.valor!=null?'R$ '+Number(a.valor).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—'}</div>
+          <div style="font-size:17px;font-weight:900;color:${pago?'var(--green)':'var(--red)'}">${a.valor!=null?'R$ '+Number(a.valor).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—'}</div>
+          <button onclick="editarAluguel(${a.id})" style="background:var(--input-bg);border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;font-family:Inter,sans-serif;cursor:pointer;color:var(--orange);margin-top:8px">✏️ Editar</button>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 }
 
@@ -1135,6 +1146,15 @@ async function marcarVoltou(id) {
   await loadAllData();
   renderAll();
   showToast('✅ Recolhimento registrado');
+}
+
+async function marcarPago(id) {
+  setSyncState('syncing');
+  const {error} = await sb.from('alugueis').update({pagamento:'Sim'}).eq('id',id);
+  if (error) { setSyncState('error'); showToast('Erro ao marcar pago'); return; }
+  await loadAllData();
+  renderAll();
+  showToast('💰 Pagamento registrado!');
 }
 
 async function excluirAluguel(id) {
