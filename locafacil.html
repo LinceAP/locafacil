@@ -546,6 +546,116 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 /* ════════════════════════════════════
+   OFFLINE / PWA
+════════════════════════════════════ */
+// registra o service worker pra funcionar offline
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+
+let isOnline = navigator.onLine;
+let tempIdCounter = -1;
+
+// fila de operações pendentes (criadas offline)
+function getQueue() {
+  try { return JSON.parse(localStorage.getItem('lince_sync_queue')||'[]'); } catch(e){ return []; }
+}
+function setQueue(q) {
+  try { localStorage.setItem('lince_sync_queue', JSON.stringify(q)); } catch(e){}
+}
+function queueOp(op) {
+  const q = getQueue();
+  q.push(op);
+  setQueue(q);
+  updateOfflineBadge();
+}
+
+// processa fila quando internet volta
+let syncing = false;
+async function processQueue() {
+  if (syncing || !navigator.onLine) return;
+  const q = getQueue();
+  if (!q.length) return;
+  syncing = true;
+  setSyncState('syncing');
+  showToast(`🔄 Sincronizando ${q.length} alteraç${q.length>1?'ões':'ão'}...`);
+
+  const remaining = [];
+  for (const op of q) {
+    try {
+      let error = null;
+      if (op.type === 'insert') {
+        const {tempId, ...payload} = op.payload;
+        ({error} = await sb.from(op.table).insert(payload));
+      } else if (op.type === 'update') {
+        ({error} = await sb.from(op.table).update(op.payload).eq('id', op.id));
+      } else if (op.type === 'delete') {
+        ({error} = await sb.from(op.table).delete().eq('id', op.id));
+      }
+      if (error) remaining.push(op);
+    } catch(e) {
+      remaining.push(op);
+    }
+  }
+  setQueue(remaining);
+  syncing = false;
+
+  if (!remaining.length) {
+    showToast('✅ Tudo sincronizado!');
+    await loadAllData();
+    renderAll();
+  } else {
+    showToast(`⚠️ ${remaining.length} pendente${remaining.length>1?'s':''} — tentando de novo depois`);
+    setSyncState('error');
+  }
+  updateOfflineBadge();
+}
+
+// indicador de status offline
+function updateOfflineBadge() {
+  let badge = document.getElementById('offline-badge');
+  const pend = getQueue().length;
+  if (!navigator.onLine || pend > 0) {
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = 'offline-badge';
+      badge.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#B87A00;color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;z-index:150;font-family:Inter,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.3)';
+      document.body.appendChild(badge);
+    }
+    badge.textContent = !navigator.onLine
+      ? `📴 Offline${pend>0?' · '+pend+' pendente'+(pend>1?'s':''):''}`
+      : `🔄 ${pend} aguardando sincronização`;
+    badge.style.display = 'block';
+  } else if (badge) {
+    badge.style.display = 'none';
+  }
+}
+
+window.addEventListener('online', () => { isOnline = true; updateOfflineBadge(); processQueue(); });
+window.addEventListener('offline', () => { isOnline = false; updateOfflineBadge(); setSyncState('error'); });
+
+// wrapper genérico: executa online ou enfileira offline
+async function dbOp(type, table, payload, id) {
+  if (navigator.onLine) {
+    try {
+      let error = null;
+      if (type === 'insert')      ({error} = await sb.from(table).insert(payload));
+      else if (type === 'update') ({error} = await sb.from(table).update(payload).eq('id', id));
+      else if (type === 'delete') ({error} = await sb.from(table).delete().eq('id', id));
+      if (error) throw error;
+      return { ok: true, offline: false };
+    } catch(e) {
+      // falhou mesmo online — enfileira
+      queueOp({type, table, payload, id});
+      return { ok: true, offline: true };
+    }
+  } else {
+    queueOp({type, table, payload, id});
+    return { ok: true, offline: true };
+  }
+}
+
+/* ════════════════════════════════════
    ESTADO LOCAL (cache)
 ════════════════════════════════════ */
 let estoque  = [];
@@ -610,6 +720,8 @@ async function bootApp() {
     setDate();
     renderAll();
     setSyncState('ok');
+    updateOfflineBadge();
+    processQueue();
     // auto-refresh every 30 seconds
     clearInterval(autoRefreshTimer);
     autoRefreshTimer = setInterval(silentRefresh, 30000);
@@ -619,17 +731,33 @@ async function bootApp() {
     }, { once: false });
   } catch(e) {
     document.getElementById('loading-overlay').style.display = 'none';
-    // show app even on error so it's not blank
     document.getElementById('app').style.display = 'flex';
     setDate();
     renderAll();
     setSyncState('error');
-    showToast('⚠️ Sem conexão — toque em 🔄 para tentar');
+    updateOfflineBadge();
+    showToast('📴 Modo offline — dados da última sincronização');
   }
 }
 
 async function loadAllData() {
   setSyncState('syncing');
+  // sem internet: carrega do backup local
+  if (!navigator.onLine) {
+    const raw = localStorage.getItem('lince_backup');
+    if (raw) {
+      try {
+        const backup = JSON.parse(raw);
+        estoque  = backup.estoque || [];
+        alugueis = backup.alugueis || [];
+        aplicarFilaLocal();
+        setSyncState('error');
+        updateOfflineBadge();
+        return;
+      } catch(e){}
+    }
+    throw new Error('offline sem backup');
+  }
   const [resE, resA] = await Promise.all([
     sb.from('estoque').select('*').order('id').limit(500),
     sb.from('alugueis').select('*').order('entrega').limit(500)
@@ -644,6 +772,23 @@ async function loadAllData() {
   setSyncState('ok');
   // auto backup to localStorage whenever data loads successfully
   autoBackup();
+}
+
+// aplica operações pendentes da fila nos dados locais (pra ver offline)
+function aplicarFilaLocal() {
+  const q = getQueue();
+  q.forEach(op => {
+    if (op.table !== 'alugueis') return;
+    if (op.type === 'insert') {
+      const existe = alugueis.find(a => a.tempId === op.payload.tempId);
+      if (!existe) alugueis.push({...op.payload, id: op.payload.tempId, _pendente: true});
+    } else if (op.type === 'update') {
+      const a = alugueis.find(x => x.id === op.id);
+      if (a) Object.assign(a, op.payload, {_pendente: true});
+    } else if (op.type === 'delete') {
+      alugueis = alugueis.filter(x => x.id !== op.id);
+    }
+  });
 }
 
 function autoBackup() {
@@ -1060,10 +1205,10 @@ function renderAlugueis() {
 
 function renderCardAluguel(a, hoje) {
   const atrasado = a.status==='ativo' && a.recolhimento?.slice(0,10) < hoje;
-  const badge = a.status==='agendado'
+  const badge = (a._pendente ? `<span class="badge badge-yellow" style="margin-right:4px">⏳ Sincronizar</span>` : '') + (a.status==='agendado'
     ? `<span class="badge badge-yellow">Agendado</span>`
     : atrasado ? `<span class="badge badge-red">Atrasado</span>`
-    : `<span class="badge badge-green">Em campo</span>`;
+    : `<span class="badge badge-green">Em campo</span>`);
 
   const chips = (a.itens||[]).filter(i=>i.qty>0).map(i=>{
     const est=estoque.find(e=>e.id===i.id);
@@ -1122,8 +1267,10 @@ function renderCardAluguel(a, hoje) {
 
 async function marcarSaiu(id) {
   setSyncState('syncing');
-  const {error} = await sb.from('alugueis').update({status:'ativo'}).eq('id',id);
-  if (error) { setSyncState('error'); showToast('Erro ao atualizar'); return; }
+  const res = await dbOp('update', 'alugueis', {status:'ativo'}, id);
+  const a = alugueis.find(x=>x.id===id);
+  if (a) a.status='ativo';
+  if (res.offline) { autoBackup(); renderAll(); showToast('📴 Saída registrada offline'); return; }
   await loadAllData();
   renderAlugueis(); renderPainel(); renderEstoque();
   showToast('✅ Saída confirmada');
@@ -1132,8 +1279,10 @@ async function marcarSaiu(id) {
 async function desfazerSaida(id) {
   if (!confirm('Desfazer a saída? O agendamento volta para "Aguardando entrega".')) return;
   setSyncState('syncing');
-  const {error} = await sb.from('alugueis').update({status:'agendado'}).eq('id',id);
-  if (error) { setSyncState('error'); showToast('Erro ao desfazer'); return; }
+  const res = await dbOp('update', 'alugueis', {status:'agendado'}, id);
+  const a = alugueis.find(x=>x.id===id);
+  if (a) a.status='agendado';
+  if (res.offline) { autoBackup(); renderAll(); showToast('📴 Desfeito offline'); return; }
   await loadAllData();
   renderAlugueis(); renderPainel(); renderEstoque();
   showToast('↩️ Saída desfeita');
@@ -1141,8 +1290,10 @@ async function desfazerSaida(id) {
 
 async function marcarVoltou(id) {
   setSyncState('syncing');
-  const {error} = await sb.from('alugueis').update({status:'finalizado', voltou:today()}).eq('id',id);
-  if (error) { setSyncState('error'); showToast('Erro ao atualizar'); return; }
+  const res = await dbOp('update', 'alugueis', {status:'finalizado', voltou:today()}, id);
+  const a = alugueis.find(x=>x.id===id);
+  if (a) { a.status='finalizado'; a.voltou=today(); }
+  if (res.offline) { autoBackup(); renderAll(); showToast('📴 Registrado offline'); return; }
   await loadAllData();
   renderAll();
   showToast('✅ Recolhimento registrado');
@@ -1150,8 +1301,10 @@ async function marcarVoltou(id) {
 
 async function marcarPago(id) {
   setSyncState('syncing');
-  const {error} = await sb.from('alugueis').update({pagamento:'Sim'}).eq('id',id);
-  if (error) { setSyncState('error'); showToast('Erro ao marcar pago'); return; }
+  const res = await dbOp('update', 'alugueis', {pagamento:'Sim'}, id);
+  const a = alugueis.find(x=>x.id===id);
+  if (a) a.pagamento='Sim';
+  if (res.offline) { autoBackup(); renderAll(); showToast('📴 Pago registrado offline'); return; }
   await loadAllData();
   renderAll();
   showToast('💰 Pagamento registrado!');
@@ -1160,8 +1313,9 @@ async function marcarPago(id) {
 async function excluirAluguel(id) {
   if (!confirm('Excluir este aluguel?')) return;
   setSyncState('syncing');
-  const {error} = await sb.from('alugueis').delete().eq('id',id);
-  if (error) { setSyncState('error'); showToast('Erro ao excluir'); return; }
+  const res = await dbOp('delete', 'alugueis', null, id);
+  alugueis = alugueis.filter(a=>a.id!==id);
+  if (res.offline) { autoBackup(); renderAll(); showToast('📴 Removido offline'); return; }
   await loadAllData();
   renderAlugueis(); renderPainel(); renderEstoque();
   showToast('Aluguel removido');
@@ -1170,8 +1324,9 @@ async function excluirAluguel(id) {
 async function excluirHistorico(id) {
   if (!confirm('Apagar este registro do histórico?')) return;
   setSyncState('syncing');
-  const {error} = await sb.from('alugueis').delete().eq('id',id);
-  if (error) { setSyncState('error'); showToast('Erro ao apagar'); return; }
+  const res = await dbOp('delete', 'alugueis', null, id);
+  alugueis = alugueis.filter(a=>a.id!==id);
+  if (res.offline) { autoBackup(); renderAll(); showToast('📴 Apagado offline'); return; }
   await loadAllData();
   renderHistorico();
   showToast('Registro apagado');
@@ -1385,14 +1540,22 @@ async function salvarAluguel() {
   btn.disabled = true;
   setSyncState('syncing');
 
-  const {error} = await sb.from('alugueis').insert(payload);
+  payload.tempId = tempIdCounter--;
+  const res = await dbOp('insert', 'alugueis', payload);
   btn.disabled = false;
 
-  if (error) { setSyncState('error'); showToast('Erro ao salvar. Tente novamente.'); return; }
-  await loadAllData();
-  closeModal('modal-aluguel');
-  renderAlugueis(); renderPainel(); renderEstoque();
-  showToast('✅ Aluguel salvo!');
+  if (res.offline) {
+    alugueis.push({...payload, id: payload.tempId, _pendente: true});
+    autoBackup();
+    closeModal('modal-aluguel');
+    renderAll();
+    showToast('📴 Salvo offline — sincroniza quando voltar internet');
+  } else {
+    await loadAllData();
+    closeModal('modal-aluguel');
+    renderAlugueis(); renderPainel(); renderEstoque();
+    showToast('✅ Aluguel salvo!');
+  }
 }
 
 /* ════════════════════════════════════
@@ -1611,14 +1774,22 @@ async function salvarEdicao() {
   btn.disabled = true;
   setSyncState('syncing');
 
-  const {error} = await sb.from('alugueis').update(payload).eq('id', editandoAluguelId);
+  const res = await dbOp('update', 'alugueis', payload, editandoAluguelId);
   btn.disabled = false;
 
-  if (error) { setSyncState('error'); showToast('Erro ao salvar. Tente novamente.'); return; }
-  await loadAllData();
-  closeModal('modal-editar');
-  renderAlugueis(); renderPainel(); renderEstoque(); renderProximos();
-  showToast('✅ Agendamento atualizado!');
+  if (res.offline) {
+    const a = alugueis.find(x=>x.id===editandoAluguelId);
+    if (a) Object.assign(a, payload, {_pendente:true});
+    autoBackup();
+    closeModal('modal-editar');
+    renderAll();
+    showToast('📴 Editado offline — sincroniza depois');
+  } else {
+    await loadAllData();
+    closeModal('modal-editar');
+    renderAlugueis(); renderPainel(); renderEstoque(); renderProximos();
+    showToast('✅ Agendamento atualizado!');
+  }
 }
 
 let voucherAluguelId = null;
