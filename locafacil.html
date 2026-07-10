@@ -585,10 +585,9 @@ async function processQueue() {
     try {
       let error = null;
       if (op.type === 'insert') {
-        const {tempId, ...payload} = op.payload;
-        ({error} = await sb.from(op.table).insert(payload));
+        ({error} = await sb.from(op.table).insert(limparPayload(op.payload)));
       } else if (op.type === 'update') {
-        ({error} = await sb.from(op.table).update(op.payload).eq('id', op.id));
+        ({error} = await sb.from(op.table).update(limparPayload(op.payload)).eq('id', op.id));
       } else if (op.type === 'delete') {
         ({error} = await sb.from(op.table).delete().eq('id', op.id));
       }
@@ -635,17 +634,24 @@ window.addEventListener('online', () => { isOnline = true; updateOfflineBadge();
 window.addEventListener('offline', () => { isOnline = false; updateOfflineBadge(); setSyncState('error'); });
 
 // wrapper genérico: executa online ou enfileira offline
+function limparPayload(p) {
+  if (!p) return p;
+  const {tempId, _pendente, id, criado_em, ...clean} = p;
+  return clean;
+}
+
 async function dbOp(type, table, payload, id) {
   if (navigator.onLine) {
     try {
       let error = null;
-      if (type === 'insert')      ({error} = await sb.from(table).insert(payload));
-      else if (type === 'update') ({error} = await sb.from(table).update(payload).eq('id', id));
+      const clean = limparPayload(payload);
+      if (type === 'insert')      ({error} = await sb.from(table).insert(clean));
+      else if (type === 'update') ({error} = await sb.from(table).update(clean).eq('id', id));
       else if (type === 'delete') ({error} = await sb.from(table).delete().eq('id', id));
       if (error) throw error;
       return { ok: true, offline: false };
     } catch(e) {
-      // falhou mesmo online — enfileira
+      console.error('dbOp error:', e);
       queueOp({type, table, payload, id});
       return { ok: true, offline: true };
     }

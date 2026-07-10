@@ -1,17 +1,10 @@
-// LinceApp Service Worker — cache do app pra funcionar offline
-const CACHE_NAME = 'lince-app-v1';
-const APP_URL = '/locafacil/locafacil.html';
+// LinceApp Service Worker — v2, cache robusto para offline
+const CACHE_NAME = 'lince-app-v2';
 
-// Instala e guarda o app no cache
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll([APP_URL]);
-    }).then(() => self.skipWaiting())
-  );
+  self.skipWaiting();
 });
 
-// Limpa caches antigos ao ativar
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -20,22 +13,26 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Estratégia: network-first com fallback pro cache
-// (sempre tenta pegar a versão mais nova; sem internet, usa a salva)
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Só intercepta o HTML do app — Supabase e CDNs passam direto
-  if (event.request.mode === 'navigate' || url.pathname === APP_URL) {
+  // Só lida com requisições do próprio site (HTML e sw)
+  if (url.origin !== self.location.origin) return;
+
+  // Navegações e o HTML do app: network-first, cache fallback
+  if (event.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // guarda a versão nova no cache
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           return response;
         })
-        .catch(() => caches.match(event.request).then((r) => r || caches.match(APP_URL)))
+        .catch(() =>
+          caches.match(event.request, { ignoreSearch: true })
+            .then((r) => r || caches.match('/locafacil/locafacil.html', { ignoreSearch: true }))
+            .then((r) => r || new Response('<h1>Offline</h1><p>Abra o app com internet uma vez para ativar o modo offline.</p>', { headers: { 'Content-Type': 'text/html' } }))
+        )
     );
   }
 });
