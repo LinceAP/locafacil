@@ -1826,6 +1826,8 @@ function compartilhar(id) {
   } else {
     document.getElementById('v-obs-wrap').style.display = 'none';
   }
+  const rn = document.getElementById('recibo-nome');
+  if (rn) rn.value = '';
   openModal('modal-voucher');
 }
 
@@ -1919,11 +1921,23 @@ async function gerarReciboFormal() {
       const est=estoque.find(e=>e.id===i.id);
       return est?`${i.qty} ${plural(i.qty,est.unidade)===est.unidade&&i.qty>1?est.unidade+'s':(i.qty>1?plural(i.qty,est.unidade):est.unidade)} de ${est.nome.toLowerCase()}`:'';
     }).filter(Boolean);
-    // simplificar itens
+    // pluraliza a primeira palavra do nome do item
+    function pluralizarNome(nome, qty) {
+      if (qty <= 1) return nome.toLowerCase();
+      const palavras = nome.toLowerCase().split(' ');
+      let p = palavras[0];
+      if (p.endsWith('s')) { /* já plural */ }
+      else if (p.endsWith('ão')) p = p.slice(0,-2)+'ões';
+      else if (p.endsWith('m'))  p = p.slice(0,-1)+'ns';
+      else if (/[rz]$/.test(p))  p = p+'es';
+      else p = p+'s';
+      palavras[0] = p;
+      return palavras.join(' ');
+    }
     const itensTexto = (al.itens||[]).filter(i=>i.qty>0).map(i=>{
       const est=estoque.find(e=>e.id===i.id);
       if(!est) return '';
-      return `${i.qty} ${est.nome.toLowerCase()}${i.qty>1?'s':''}`;
+      return `${i.qty} ${pluralizarNome(est.nome, i.qty)}`;
     }).filter(Boolean).join(', ');
 
     const valor = al.valor || 0;
@@ -1935,7 +1949,8 @@ async function gerarReciboFormal() {
     const dR = fmt(al.recolhimento);
     const diasTexto = `${dE.slice(0,2)} e ${dR}`;
 
-    const corpo = `        Recebi de ${al.cliente}, a importância de R$ ${valorFmt} (${extenso}), referente à locação de ${itensTexto} para os dias ${diasTexto}.`;
+    const nomeRecibo = (document.getElementById('recibo-nome')?.value||'').trim() || al.cliente;
+    const corpo = `        Recebi de ${nomeRecibo}, a importância de R$ ${valorFmt} (${extenso}), referente à locação de ${itensTexto} para os dias ${diasTexto}.`;
 
     // desenhar corpo com quebra de linha
     ctx.fillStyle='#0F0F0F';
@@ -2288,7 +2303,11 @@ function compartilharTexto() {
       </div>
 
       <!-- actions -->
-      <button class="btn-secondary" onclick="gerarReciboFormal()" id="btn-recibo-formal" style="margin-top:14px;background:#fff;color:#0F0F0F;border:1.5px solid var(--border)">🧾 Recibo Formal</button>
+      <div style="margin-top:14px">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;display:block">Nome completo no recibo (opcional)</label>
+        <input type="text" class="form-input" id="recibo-nome" placeholder="Deixe vazio para usar o nome do agendamento" style="margin-bottom:8px"/>
+        <button class="btn-secondary" onclick="gerarReciboFormal()" id="btn-recibo-formal" style="background:#fff;color:#0F0F0F;border:1.5px solid var(--border)">🧾 Recibo Formal</button>
+      </div>
       <div style="display:flex;gap:10px;margin-top:10px;padding-bottom:8px">
         <button class="btn-primary" onclick="gerarImagem()" id="btn-gerar-img">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 11l3-3 2 2 4-5 3 4" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="1" y="1" width="14" height="14" rx="3" stroke="white" stroke-width="1.5" fill="none"/></svg>
