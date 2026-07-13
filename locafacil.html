@@ -2086,30 +2086,30 @@ async function gerarImagem() {
     if(al.endereco){ctx.fillStyle='#AEAEB2';ctx.font='500 32px Arial';ctx.fillText('📍 '+al.endereco,50,y);y+=46;}
     y+=30;
 
-    // Cards de data
+    // Cards de data — maiores
     const cW=(W-130)/2;
-    rr(50,y,cW,150,24); ctx.fillStyle='#1C1C1E'; ctx.fill();
-    ctx.fillStyle='#FF6B00'; ctx.font='700 26px Arial'; ctx.fillText('ENTREGA',80,y+48);
-    ctx.fillStyle='#FFFFFF'; ctx.font='800 42px Arial'; ctx.fillText(fmt(al.entrega),80,y+100);
-    if(al.hora_entrega){ctx.fillStyle='#AEAEB2';ctx.font='500 30px Arial';ctx.fillText('às '+al.hora_entrega,80,y+138);}
+    rr(50,y,cW,180,24); ctx.fillStyle='#1C1C1E'; ctx.fill();
+    ctx.fillStyle='#FF6B00'; ctx.font='800 30px Arial'; ctx.fillText('ENTREGA',80,y+50);
+    ctx.fillStyle='#FFFFFF'; ctx.font='900 50px Arial'; ctx.fillText(fmt(al.entrega),80,y+108);
+    if(al.hora_entrega){ctx.fillStyle='#FF9F0A';ctx.font='700 40px Arial';ctx.fillText('🕐 '+al.hora_entrega,80,y+158);}
 
     const c2=50+cW+30;
-    rr(c2,y,cW,150,24); ctx.fillStyle='#1C1C1E'; ctx.fill();
-    ctx.fillStyle='#34C759'; ctx.font='700 26px Arial'; ctx.fillText('RECOLHIMENTO',c2+30,y+48);
-    ctx.fillStyle='#FFFFFF'; ctx.font='800 42px Arial'; ctx.fillText(fmt(al.recolhimento),c2+30,y+100);
-    if(al.hora_recolhimento){ctx.fillStyle='#AEAEB2';ctx.font='500 30px Arial';ctx.fillText('às '+al.hora_recolhimento,c2+30,y+138);}
-    y+=200;
+    rr(c2,y,cW,180,24); ctx.fillStyle='#1C1C1E'; ctx.fill();
+    ctx.fillStyle='#34C759'; ctx.font='800 30px Arial'; ctx.fillText('RECOLHIMENTO',c2+30,y+50);
+    ctx.fillStyle='#FFFFFF'; ctx.font='900 50px Arial'; ctx.fillText(fmt(al.recolhimento),c2+30,y+108);
+    if(al.hora_recolhimento){ctx.fillStyle='#30D158';ctx.font='700 40px Arial';ctx.fillText('🕐 '+al.hora_recolhimento,c2+30,y+158);}
+    y+=230;
 
     // ITENS
     const itensArr=(al.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?{nome:est.nome,qty:i.qty,unidade:plural(i.qty,est.unidade)}:null;}).filter(Boolean);
-    ctx.fillStyle='#636366'; ctx.font='700 26px Arial'; ctx.fillText('ITENS',50,y); y+=40;
+    ctx.fillStyle='#636366'; ctx.font='800 30px Arial'; ctx.fillText('ITENS',50,y); y+=48;
     itensArr.forEach(item=>{
-      rr(50,y,W-100,86,20); ctx.fillStyle='#1C1C1E'; ctx.fill();
-      ctx.fillStyle='#E5E5EA'; ctx.font='600 34px Arial'; ctx.fillText(item.nome,84,y+54);
+      rr(50,y,W-100,100,20); ctx.fillStyle='#1C1C1E'; ctx.fill();
+      ctx.fillStyle='#FFFFFF'; ctx.font='700 40px Arial'; ctx.fillText(item.nome,84,y+62);
       const qt=`${item.qty} ${item.unidade}`;
-      ctx.fillStyle='#FF6B00'; ctx.font='800 34px Arial';
-      ctx.fillText(qt,W-84-ctx.measureText(qt).width,y+54);
-      y+=102;
+      ctx.fillStyle='#FF6B00'; ctx.font='900 40px Arial';
+      ctx.fillText(qt,W-84-ctx.measureText(qt).width,y+62);
+      y+=116;
     });
 
     // OBS
@@ -2122,9 +2122,19 @@ async function gerarImagem() {
       y+=130;
     }
 
-    // GRATO
-    ctx.fillStyle='#FF6B00'; ctx.font='700 36px Arial'; ctx.textAlign='center';
-    ctx.fillText('🙏 Grato pela preferência!', W/2, H-140);
+    // GRATO — card destacado no espaço restante
+    y += 20;
+    const gratoH = 150;
+    // centraliza verticalmente no espaço que sobra até o footer
+    const espacoLivre = (H-90) - y;
+    const gY = espacoLivre > gratoH+40 ? y + (espacoLivre-gratoH)/2 : y;
+    rr(50, gY, W-100, gratoH, 24);
+    ctx.fillStyle='#2A1A0A'; ctx.fill();
+    ctx.strokeStyle='#FF6B00'; ctx.lineWidth=3; rr(50,gY,W-100,gratoH,24); ctx.stroke();
+    ctx.fillStyle='#FF6B00'; ctx.font='900 46px Arial'; ctx.textAlign='center';
+    ctx.fillText('🙏 Grato pela preferência!', W/2, gY+70);
+    ctx.fillStyle='#AEAEB2'; ctx.font='500 30px Arial';
+    ctx.fillText('Lince Serviços e Eventos', W/2, gY+115);
     ctx.textAlign='left';
 
     // FOOTER
