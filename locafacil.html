@@ -2088,17 +2088,18 @@ async function gerarImagem() {
 
     // Cards de data — maiores
     const cW=(W-130)/2;
-    rr(50,y,cW,180,24); ctx.fillStyle='#1C1C1E'; ctx.fill();
-    ctx.fillStyle='#FF6B00'; ctx.font='800 30px Arial'; ctx.fillText('ENTREGA',80,y+50);
-    ctx.fillStyle='#FFFFFF'; ctx.font='900 50px Arial'; ctx.fillText(fmt(al.entrega),80,y+108);
-    if(al.hora_entrega){ctx.fillStyle='#FF9F0A';ctx.font='700 40px Arial';ctx.fillText('🕐 '+al.hora_entrega,80,y+158);}
+    const cardH = 190;
+    rr(50,y,cW,cardH,24); ctx.fillStyle='#1C1C1E'; ctx.fill();
+    ctx.fillStyle='#FF6B00'; ctx.font='800 28px Arial'; ctx.fillText('ENTREGA',80,y+46);
+    ctx.fillStyle='#FFFFFF'; ctx.font='900 46px Arial'; ctx.fillText(fmt(al.entrega),80,y+100);
+    if(al.hora_entrega){ctx.fillStyle='#FF9F0A';ctx.font='800 40px Arial';ctx.fillText('às '+al.hora_entrega,80,y+152);}
 
     const c2=50+cW+30;
-    rr(c2,y,cW,180,24); ctx.fillStyle='#1C1C1E'; ctx.fill();
-    ctx.fillStyle='#34C759'; ctx.font='800 30px Arial'; ctx.fillText('RECOLHIMENTO',c2+30,y+50);
-    ctx.fillStyle='#FFFFFF'; ctx.font='900 50px Arial'; ctx.fillText(fmt(al.recolhimento),c2+30,y+108);
-    if(al.hora_recolhimento){ctx.fillStyle='#30D158';ctx.font='700 40px Arial';ctx.fillText('🕐 '+al.hora_recolhimento,c2+30,y+158);}
-    y+=230;
+    rr(c2,y,cW,cardH,24); ctx.fillStyle='#1C1C1E'; ctx.fill();
+    ctx.fillStyle='#34C759'; ctx.font='800 28px Arial'; ctx.fillText('RECOLHIMENTO',c2+30,y+46);
+    ctx.fillStyle='#FFFFFF'; ctx.font='900 46px Arial'; ctx.fillText(fmt(al.recolhimento),c2+30,y+100);
+    if(al.hora_recolhimento){ctx.fillStyle='#30D158';ctx.font='800 40px Arial';ctx.fillText('às '+al.hora_recolhimento,c2+30,y+152);}
+    y+=cardH+40;
 
     // ITENS
     const itensArr=(al.itens||[]).filter(i=>i.qty>0).map(i=>{const est=estoque.find(e=>e.id===i.id);return est?{nome:est.nome,qty:i.qty,unidade:plural(i.qty,est.unidade)}:null;}).filter(Boolean);
@@ -2122,19 +2123,27 @@ async function gerarImagem() {
       y+=130;
     }
 
-    // GRATO — card destacado no espaço restante
-    y += 20;
-    const gratoH = 150;
-    // centraliza verticalmente no espaço que sobra até o footer
-    const espacoLivre = (H-90) - y;
-    const gY = espacoLivre > gratoH+40 ? y + (espacoLivre-gratoH)/2 : y;
+    // GRATO — card no espaço restante, sempre acima do footer
+    y += 16;
+    const footerTop = H - 90;
+    const gratoH = 120;
+    // se não couber com folga, encolhe pra caber
+    let gY = y;
+    const disponivel = footerTop - y - 20;
+    if (disponivel < gratoH) {
+      // pouco espaço: desenha compacto logo abaixo do conteúdo
+      gY = Math.min(y, footerTop - gratoH - 20);
+    } else {
+      // centraliza no espaço livre
+      gY = y + (disponivel - gratoH)/2;
+    }
     rr(50, gY, W-100, gratoH, 24);
     ctx.fillStyle='#2A1A0A'; ctx.fill();
     ctx.strokeStyle='#FF6B00'; ctx.lineWidth=3; rr(50,gY,W-100,gratoH,24); ctx.stroke();
-    ctx.fillStyle='#FF6B00'; ctx.font='900 46px Arial'; ctx.textAlign='center';
-    ctx.fillText('🙏 Grato pela preferência!', W/2, gY+70);
-    ctx.fillStyle='#AEAEB2'; ctx.font='500 30px Arial';
-    ctx.fillText('Lince Serviços e Eventos', W/2, gY+115);
+    ctx.fillStyle='#FF6B00'; ctx.font='900 40px Arial'; ctx.textAlign='center';
+    ctx.fillText('🙏 Grato pela preferência!', W/2, gY+58);
+    ctx.fillStyle='#AEAEB2'; ctx.font='500 26px Arial';
+    ctx.fillText('Lince Serviços e Eventos', W/2, gY+96);
     ctx.textAlign='left';
 
     // FOOTER
